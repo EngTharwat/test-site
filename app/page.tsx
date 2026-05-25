@@ -9,22 +9,18 @@ import { useAuth } from '@/lib/auth-context'
    Two variants — outline (light bg) and filled (dark bg)
 ───────────────────────────────────────────────────────── */
 function LogoIcon({ size = 34, variant = 'outline' }: { size?: number; variant?: 'outline' | 'filled' }) {
-  if (variant === 'filled') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="36" height="36" rx="8" fill="#000000" />
-        <rect x="7"  y="16" width="6" height="13" rx="1.5" fill="white" />
-        <rect x="15" y="11" width="6" height="18" rx="1.5" fill="white" />
-        <rect x="23" y="7"  width="6" height="22" rx="1.5" fill="white" />
-      </svg>
-    )
-  }
+  const w = Math.round(size * 1.5)
+  const c = variant === 'filled' ? 'white' : 'black'
   return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="1.5" y="1.5" width="33" height="33" rx="7.5" stroke="black" strokeWidth="2.5" />
-      <rect x="7"  y="16" width="6" height="13" rx="1.5" fill="black" />
-      <rect x="15" y="11" width="6" height="18" rx="1.5" fill="black" />
-      <rect x="23" y="7"  width="6" height="22" rx="1.5" fill="black" />
+    <svg width={w} height={size} viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer landscape rectangle — border only */}
+      <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke={c} strokeWidth="5" fill="none" />
+      {/* Card: small outlined square */}
+      <rect x="17.5" y="27.5" width="25" height="25" rx="4" stroke={c} strokeWidth="5" fill="none" />
+      {/* Growing bars — bottom-aligned */}
+      <rect x="63" y="45" width="5" height="20" rx="2.5" fill={c} />
+      <rect x="76" y="35" width="5" height="30" rx="2.5" fill={c} />
+      <rect x="89" y="25" width="5" height="40" rx="2.5" fill={c} />
     </svg>
   )
 }

@@ -140,10 +140,10 @@ export default function NewProjectPage() {
         {/* ── Section: Contract & Financial ────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-[13px] font-bold text-black uppercase tracking-wider mb-5">Contract & Financial</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
             <Field label="Contract Value" required>
-              <div className="flex gap-2">
+              <div className="flex gap-2 min-w-0">
                 <select className={`${selectCls} w-24 flex-shrink-0`} value={form.currency} onChange={set('currency')}>
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>

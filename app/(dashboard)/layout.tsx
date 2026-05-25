@@ -7,12 +7,17 @@ import { useAuth } from '@/lib/auth-context'
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 function LogoIcon({ size = 22 }: { size?: number }) {
+  const w = Math.round(size * 1.5)
   return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-      <rect x="1.5" y="1.5" width="33" height="33" rx="7.5" stroke="white" strokeWidth="2.5" />
-      <rect x="7"  y="16" width="6" height="13" rx="1.5" fill="white" />
-      <rect x="15" y="11" width="6" height="18" rx="1.5" fill="white" />
-      <rect x="23" y="7"  width="6" height="22" rx="1.5" fill="white" />
+    <svg width={w} height={size} viewBox="0 0 120 80" fill="none">
+      {/* Outer landscape rectangle — border only */}
+      <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="white" strokeWidth="5" fill="none" />
+      {/* Card: small outlined square */}
+      <rect x="17.5" y="27.5" width="25" height="25" rx="4" stroke="white" strokeWidth="5" fill="none" />
+      {/* Growing bars — bottom-aligned */}
+      <rect x="63" y="45" width="5" height="20" rx="2.5" fill="white" />
+      <rect x="76" y="35" width="5" height="30" rx="2.5" fill="white" />
+      <rect x="89" y="25" width="5" height="40" rx="2.5" fill="white" />
     </svg>
   )
 }
