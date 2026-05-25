@@ -1,0 +1,22 @@
+{
+  "name": "PMBoards",
+  "short_name": "PMBoards",
+  "description": "Plan. Track. Progress. — PMO platform for sewer network projects.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "theme_color": "#0F1115",
+  "background_color": "#0F1115",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "180x180"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-  <!-- PMBoards Logo — White/outline (for light backgrounds) -->
-  <rect x="8" y="8" width="184" height="184" rx="40" fill="white" stroke="#000000" stroke-width="14"/>
-  <rect x="39"  y="89"  width="33" height="72" rx="8" fill="#000000"/>
-  <rect x="84"  y="61"  width="33" height="100" rx="8" fill="#000000"/>
-  <rect x="128" y="39"  width="33" height="122" rx="8" fill="#000000"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" fill="none">
+  <!-- PMBoards logo — white, transparent background (use on dark bg) -->
+  <rect x="2.5"  y="2.5"  width="115" height="75" rx="13" stroke="white" stroke-width="5" fill="none"/>
+  <rect x="22.5" y="22.5" width="35"  height="35" rx="5"  stroke="white" stroke-width="5" fill="none"/>
+  <rect x="67.5" y="40"   width="5"   height="20" rx="2.5" fill="white"/>
+  <rect x="82.5" y="30"   width="5"   height="30" rx="2.5" fill="white"/>
+  <rect x="97.5" y="20"   width="5"   height="40" rx="2.5" fill="white"/>
 </svg>

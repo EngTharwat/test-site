@@ -11,9 +11,25 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: "PMBoards — Plan. Track. Progress.",
-  description: "Organize tasks visually with lists and cards. Simple, fast, and yours.",
+  description: "PMO platform for sewer network projects. Plan, track and control your infrastructure projects.",
   icons: {
-    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    icon:      [{ url: '/favicon.svg',           type: 'image/svg+xml' }],
+    apple:     [{ url: '/apple-touch-icon.svg',  type: 'image/svg+xml', sizes: '180x180' }],
+    shortcut:  [{ url: '/favicon.svg',           type: 'image/svg+xml' }],
+  },
+  manifest: '/site.webmanifest',
+  openGraph: {
+    title:       'PMBoards — Plan. Track. Progress.',
+    description: 'PMO platform for sewer network projects.',
+    url:         'https://pmboards.com',
+    siteName:    'PMBoards',
+    locale:      'en_US',
+    type:        'website',
+  },
+  twitter: {
+    card:        'summary',
+    title:       'PMBoards',
+    description: 'PMO platform for sewer network projects.',
   },
 };
 
