@@ -7,17 +7,17 @@ import { useAuth } from '@/lib/auth-context'
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 function LogoIcon({ size = 22 }: { size?: number }) {
-  const w = Math.round(size * 1.5)
+  const w = Math.round(size * 220 / 90)
   return (
-    <svg width={w} height={size} viewBox="0 0 120 80" fill="none">
-      {/* Outer landscape rectangle — border only */}
-      <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="white" strokeWidth="5" fill="none" />
-      {/* Card: small outlined square */}
-      <rect x="17.5" y="27.5" width="25" height="25" rx="4" stroke="white" strokeWidth="5" fill="none" />
-      {/* Growing bars — bottom-aligned */}
-      <rect x="63" y="45" width="5" height="20" rx="2.5" fill="white" />
-      <rect x="76" y="35" width="5" height="30" rx="2.5" fill="white" />
-      <rect x="89" y="25" width="5" height="40" rx="2.5" fill="white" />
+    <svg width={w} height={size} viewBox="0 0 220 90" fill="none">
+      {/* Outer landscape rectangle — heavily rounded, border only */}
+      <rect x="3" y="3" width="214" height="84" rx="22" stroke="white" strokeWidth="6" fill="none" />
+      {/* Card: large outlined square, left-aligned */}
+      <rect x="22" y="17" width="52" height="52" rx="9" stroke="white" strokeWidth="6" fill="none" />
+      {/* Growing bars — solid, bottom-aligned */}
+      <rect x="108" y="54" width="14" height="22" rx="4" fill="white" />
+      <rect x="130" y="38" width="14" height="38" rx="4" fill="white" />
+      <rect x="152" y="20" width="14" height="56" rx="4" fill="white" />
     </svg>
   )
 }
