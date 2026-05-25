@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import { Zone, ZoneStatus, formatLength } from '@/lib/types'
+import { Zone, ZoneStatus, formatLength, fmtN } from '@/lib/types'
 
 const ZONE_STATUS_LABELS: Record<ZoneStatus, string> = {
   not_started: 'Not Started',
@@ -112,9 +112,11 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
   }
 
   // Summary stats
-  const totalLen    = zones.reduce((s, z) => s + (z.totalLength || 0), 0)
-  const executedLen = zones.reduce((s, z) => s + (z.executedLength || 0), 0)
-  const avgCompl    = zones.length ? Math.round(zones.reduce((s, z) => s + (z.completionPct || 0), 0) / zones.length) : 0
+  const totalLen      = zones.reduce((s, z) => s + (z.totalLength    || 0), 0)
+  const executedLen   = zones.reduce((s, z) => s + (z.executedLength  || 0), 0)
+  const remainingLen  = zones.reduce((s, z) => s + (z.remainingLength || 0), 0)
+  const overallPct    = totalLen > 0 ? Math.round((executedLen / totalLen) * 100) : 0
+  const avgCompl      = zones.length ? Math.round(zones.reduce((s, z) => s + (z.completionPct || 0), 0) / zones.length) : 0
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
@@ -230,9 +232,9 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
                   </div>
                   {zone.description && <p className="text-[11px] text-[#6B7280] mt-0.5">{zone.description}</p>}
                 </div>
-                <span className="text-right text-[12px] text-[#374151] font-medium">{(zone.totalLength || 0).toLocaleString()} m</span>
-                <span className="text-right text-[12px] text-[#374151] font-medium">{(zone.executedLength || 0).toLocaleString()} m</span>
-                <span className="text-right text-[12px] text-[#374151] font-medium">{(zone.remainingLength || 0).toLocaleString()} m</span>
+                <span className="text-right text-[12px] text-[#374151] font-medium">{fmtN(zone.totalLength    || 0)} m</span>
+                <span className="text-right text-[12px] text-[#374151] font-medium">{fmtN(zone.executedLength  || 0)} m</span>
+                <span className="text-right text-[12px] text-[#374151] font-medium">{fmtN(zone.remainingLength || 0)} m</span>
                 <ProgressBar pct={zone.completionPct || 0} />
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => openEdit(zone)} className="text-[11px] text-[#6B7280] hover:text-black transition-colors">Edit</button>
@@ -240,6 +242,23 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* ── Totals row ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-[1fr_100px_100px_100px_120px_80px] gap-4 items-center px-6 py-4 bg-[#F3F4F6] border-t-2 border-gray-200">
+            <span className="text-[11px] font-bold text-black uppercase tracking-wider">
+              Total ({zones.length} zones)
+            </span>
+            <span className="text-right text-[12px] font-bold text-black">{fmtN(totalLen)} m</span>
+            <span className="text-right text-[12px] font-bold text-[#2563FF]">{fmtN(executedLen)} m</span>
+            <span className="text-right text-[12px] font-bold text-orange-600">{fmtN(remainingLen)} m</span>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-[#2563FF]" style={{ width: `${overallPct}%` }} />
+              </div>
+              <span className="text-[11px] font-bold text-black w-9 text-right">{overallPct}%</span>
+            </div>
+            <span />
           </div>
         </div>
       )}

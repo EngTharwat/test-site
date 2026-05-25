@@ -154,15 +154,23 @@ export const PROJECT_TYPES:    ProjectType[]   = ['sewer_network','water_network
 export const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Format a number with thousand-comma separators. decimals = decimal places. */
+export function fmtN(value: number, decimals = 0): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+}
+
+/** Full currency amount — no K/M abbreviations, always shows Halalas (2 dp). */
 export function formatCurrency(value: number, currency: Currency = 'SAR'): string {
-  if (value >= 1_000_000) return `${currency} ${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000)     return `${currency} ${(value / 1_000).toFixed(0)}K`
-  return `${currency} ${value.toLocaleString()}`
+  return `${currency} ${fmtN(value, 2)}`
 }
 
 export function formatLength(metres: number): string {
-  if (metres >= 1000) return `${(metres / 1000).toFixed(2)} km`
-  return `${metres.toLocaleString()} m`
+  if (metres >= 1000) return `${fmtN(metres / 1000, 2)} km`
+  return `${fmtN(metres)} m`
 }
 
 export function daysRemaining(endDate: string): number {

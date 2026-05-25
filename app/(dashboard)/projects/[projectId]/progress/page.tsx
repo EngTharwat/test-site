@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import { Segment, Zone, ACTIVITY_KEYS, formatLength } from '@/lib/types'
+import { Segment, Zone, ACTIVITY_KEYS, formatLength, fmtN } from '@/lib/types'
 
 export default function ProgressPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
@@ -84,7 +84,7 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
                   <div className="h-full rounded-full" style={{ width: `${act.pct}%`, background: act.color }} />
                 </div>
-                <div className="text-[10px] text-[#6B7280]">{act.actual.toFixed(0)} / {act.planned.toFixed(0)} m</div>
+                <div className="text-[10px] text-[#6B7280]">{fmtN(act.actual)} / {fmtN(act.planned)} m</div>
               </div>
             ))}
           </div>
@@ -125,7 +125,7 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
                   <div key={z.id} className="grid grid-cols-[1fr_80px_80px_160px] items-center gap-4 px-6 py-4">
                     <div>
                       <span className="text-[13px] font-semibold text-black">{z.name}</span>
-                      <span className="text-[11px] text-[#6B7280] ml-2">{z.segCount} segs · {z.segLen.toFixed(0)} m</span>
+                      <span className="text-[11px] text-[#6B7280] ml-2">{z.segCount} segs · {fmtN(z.segLen)} m</span>
                     </div>
                     <span className="text-[12px] text-[#6B7280] text-center">{formatLength(z.executedLength || 0)}</span>
                     <span className="text-[12px] font-bold text-black text-right">{z.computedPct}%</span>

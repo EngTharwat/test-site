@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import { Segment, Zone, PIPE_MATERIALS, ACTIVITY_KEYS } from '@/lib/types'
+import { Segment, Zone, PIPE_MATERIALS, ACTIVITY_KEYS, fmtN } from '@/lib/types'
 
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-colors placeholder:text-gray-400'
 
@@ -18,23 +18,26 @@ function ActivityBadge({ pct, color }: { pct: number; color: string }) {
   )
 }
 
+const emptyForm = {
+  zoneId: '', lineNumber: '', fromMH: '', toMH: '',
+  diameter: '', length: '', material: 'uPVC',
+  startLat: '', startLng: '', endLat: '', endLng: '',
+}
+
 export default function SegmentsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
 
-  const [segments, setSegments] = useState<Segment[]>([])
-  const [zones,    setZones]    = useState<Zone[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [saving,   setSaving]   = useState(false)
-  const [filterZone, setFilterZone] = useState('')
+  const [segments,     setSegments]     = useState<Segment[]>([])
+  const [zones,        setZones]        = useState<Zone[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState('')
+  const [showForm,     setShowForm]     = useState(false)
+  const [saving,       setSaving]       = useState(false)
+  const [filterZone,   setFilterZone]   = useState('')
+  const [editSegment,  setEditSegment]  = useState<Segment | null>(null)
 
-  const [form, setForm] = useState({
-    zoneId: '', lineNumber: '', fromMH: '', toMH: '',
-    diameter: '', length: '', material: 'uPVC',
-    startLat: '', startLng: '', endLat: '', endLng: '',
-  })
+  const [form, setForm] = useState(emptyForm)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -53,39 +56,78 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  function openEdit(seg: Segment) {
+    setEditSegment(seg)
+    setForm({
+      zoneId:     seg.zoneId,
+      lineNumber: seg.lineNumber,
+      fromMH:     seg.fromMH,
+      toMH:       seg.toMH,
+      diameter:   String(seg.diameter),
+      length:     String(seg.length),
+      material:   seg.material,
+      startLat:   seg.startLat != null ? String(seg.startLat) : '',
+      startLng:   seg.startLng != null ? String(seg.startLng) : '',
+      endLat:     seg.endLat   != null ? String(seg.endLat)   : '',
+      endLng:     seg.endLng   != null ? String(seg.endLng)   : '',
+    })
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function deleteSeg(segId: string) {
+    if (!confirm('Delete this segment? This cannot be undone.')) return
+    try {
+      await api.delete(`/api/projects/${projectId}/segments/${segId}`)
+      setSegments(prev => prev.filter(s => s.id !== segId))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete segment')
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.zoneId) { setError('Please select a zone'); return }
     setSaving(true); setError('')
     const len = Number(form.length) || 0
-    const defaultActivity = (qty: number) => ({
-      plannedQty: qty, actualQty: 0, pct: 0, status: 'not_started',
-    })
+
+    const body = {
+      zoneId:     form.zoneId,
+      lineNumber: form.lineNumber.trim(),
+      fromMH:     form.fromMH.trim(),
+      toMH:       form.toMH.trim(),
+      diameter:   Number(form.diameter) || 0,
+      length:     len,
+      material:   form.material,
+      startLat:   form.startLat ? Number(form.startLat) : null,
+      startLng:   form.startLng ? Number(form.startLng) : null,
+      endLat:     form.endLat   ? Number(form.endLat)   : null,
+      endLng:     form.endLng   ? Number(form.endLng)   : null,
+    }
+
     try {
-      const seg = await api.post(`/api/projects/${projectId}/segments`, {
-        zoneId: form.zoneId,
-        lineNumber: form.lineNumber.trim(),
-        fromMH:     form.fromMH.trim(),
-        toMH:       form.toMH.trim(),
-        diameter:   Number(form.diameter) || 0,
-        length:     len,
-        material:   form.material,
-        startLat:   form.startLat ? Number(form.startLat) : null,
-        startLng:   form.startLng ? Number(form.startLng) : null,
-        endLat:     form.endLat   ? Number(form.endLat)   : null,
-        endLng:     form.endLng   ? Number(form.endLng)   : null,
-        excavation:   defaultActivity(len),
-        piping:       defaultActivity(len),
-        backfilling:  defaultActivity(len),
-        basecourse:   defaultActivity(len),
-        asphalt:      defaultActivity(len),
-        overallPct: 0, status: 'not_started',
-      })
-      setSegments(prev => [seg, ...prev])
-      setForm({ zoneId: form.zoneId, lineNumber: '', fromMH: '', toMH: '', diameter: '', length: '', material: 'uPVC', startLat: '', startLng: '', endLat: '', endLng: '' })
+      if (editSegment) {
+        const updated = await api.patch(`/api/projects/${projectId}/segments/${editSegment.id}`, body)
+        setSegments(prev => prev.map(s => s.id === editSegment.id ? updated : s))
+      } else {
+        const defaultActivity = (qty: number) => ({ plannedQty: qty, actualQty: 0, pct: 0, status: 'not_started' })
+        const seg = await api.post(`/api/projects/${projectId}/segments`, {
+          ...body,
+          excavation:  defaultActivity(len),
+          piping:      defaultActivity(len),
+          backfilling: defaultActivity(len),
+          basecourse:  defaultActivity(len),
+          asphalt:     defaultActivity(len),
+          overallPct:  0,
+          status:      'not_started',
+        })
+        setSegments(prev => [seg, ...prev])
+      }
+      setForm(emptyForm)
       setShowForm(false)
+      setEditSegment(null)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to add segment')
+      setError(err instanceof Error ? err.message : 'Failed to save segment')
     } finally {
       setSaving(false)
     }
@@ -109,7 +151,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
           <p className="text-sm text-[#6B7280] mt-1">Individual pipe segments with engineering data and activity progress</p>
         </div>
         <button
-          onClick={() => setShowForm(v => !v)}
+          onClick={() => { setForm(emptyForm); setEditSegment(null); setShowForm(v => !v) }}
           className="bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] transition-colors"
         >
           + Add Segment
@@ -123,14 +165,16 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
           {zones.map(z => <option key={z.id} value={z.id}>{z.name} ({segments.filter(s => s.zoneId === z.id).length})</option>)}
         </select>
         <span className="text-[12px] text-[#6B7280]">
-          {displayed.length} segments · {totalLen.toFixed(0)} m total
+          {displayed.length} segments · {fmtN(totalLen, 1)} m total
         </span>
       </div>
 
-      {/* Add segment form */}
+      {/* Add / Edit form */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h3 className="text-[13px] font-bold text-black uppercase tracking-wider mb-4">New Pipe Segment</h3>
+          <h3 className="text-[13px] font-bold text-black uppercase tracking-wider mb-4">
+            {editSegment ? 'Edit Segment' : 'New Pipe Segment'}
+          </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="col-span-2 md:col-span-4">
               <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Zone *</label>
@@ -166,7 +210,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Start Lat (optional)</label>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Start Lat</label>
               <input className={inputCls} type="number" step="any" value={form.startLat} onChange={set('startLat')} placeholder="24.123456" />
             </div>
             <div>
@@ -185,9 +229,11 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
           {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
           <div className="flex gap-3 mt-4">
             <button type="submit" disabled={saving} className="bg-black text-white text-sm font-semibold px-5 py-2 rounded-lg hover:bg-[#0F1115] disabled:opacity-50 transition-colors">
-              {saving ? 'Adding…' : 'Add Segment'}
+              {saving ? 'Saving…' : editSegment ? 'Update Segment' : 'Add Segment'}
             </button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-[#6B7280] hover:text-black transition-colors">Cancel</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditSegment(null); setForm(emptyForm) }} className="text-sm text-[#6B7280] hover:text-black transition-colors">
+              Cancel
+            </button>
           </div>
         </form>
       )}
@@ -211,12 +257,13 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                 <th className="text-left px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Line</th>
                 <th className="text-left px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">MH From → To</th>
                 <th className="text-right px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Ø (mm)</th>
-                <th className="text-right px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Length</th>
+                <th className="text-right px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Length (m)</th>
                 <th className="px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Material</th>
                 {ACTIVITY_KEYS.map(a => (
                   <th key={a.key} className="px-2 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider text-center">{a.label.slice(0,4)}</th>
                 ))}
                 <th className="text-right px-4 py-3 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Overall</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -225,8 +272,8 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                   <td className="px-4 py-3 text-[#374151]">{zoneMap[seg.zoneId] || '—'}</td>
                   <td className="px-4 py-3 font-semibold text-black">{seg.lineNumber || '—'}</td>
                   <td className="px-4 py-3 text-[#374151]">{seg.fromMH} → {seg.toMH}</td>
-                  <td className="px-4 py-3 text-right text-[#374151]">{seg.diameter}</td>
-                  <td className="px-4 py-3 text-right font-medium text-black">{seg.length} m</td>
+                  <td className="px-4 py-3 text-right text-[#374151]">{fmtN(seg.diameter)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-black">{fmtN(seg.length, 1)}</td>
                   <td className="px-4 py-3">
                     <span className="bg-gray-100 text-[#374151] text-[10px] font-semibold px-1.5 py-0.5 rounded">{seg.material}</span>
                   </td>
@@ -236,9 +283,26 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                     </td>
                   ))}
                   <td className="px-4 py-3 text-right font-bold text-black">{seg.overallPct || 0}%</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2.5 justify-end whitespace-nowrap">
+                      <button onClick={() => openEdit(seg)} className="text-[11px] text-[#6B7280] hover:text-black transition-colors">Edit</button>
+                      <button onClick={() => deleteSeg(seg.id)} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">Del</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
+            {/* Totals row */}
+            <tfoot>
+              <tr className="bg-[#F3F4F6] border-t-2 border-gray-200">
+                <td colSpan={4} className="px-4 py-3 text-[11px] font-bold text-black uppercase tracking-wider">
+                  Total ({displayed.length} segments)
+                </td>
+                <td className="px-4 py-3 text-right text-[12px] font-bold text-black">{fmtN(totalLen, 1)}</td>
+                <td colSpan={7} />
+                <td />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
