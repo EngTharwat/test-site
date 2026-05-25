@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
@@ -81,7 +81,7 @@ function NavItem({
   href, icon: IconComp, label, active, disabled = false,
 }: {
   href: string
-  icon: () => JSX.Element
+  icon: () => React.ReactElement
   label: string
   active: boolean
   disabled?: boolean
