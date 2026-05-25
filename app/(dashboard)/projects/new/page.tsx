@@ -37,6 +37,7 @@ export default function NewProjectPage() {
     contractValue:      '',
     currency:           'SAR',
     totalNetworkLength: '',
+    lengthUnit:         'm',
     contractStartDate:  '',
     contractEndDate:    '',
     status:             'planning',
@@ -54,7 +55,7 @@ export default function NewProjectPage() {
       const project = await api.post('/api/projects', {
         ...form,
         contractValue:      Number(form.contractValue) || 0,
-        totalNetworkLength: Number(form.totalNetworkLength) || 0,
+        totalNetworkLength: (Number(form.totalNetworkLength) || 0) * (form.lengthUnit === 'km' ? 1000 : 1),
       })
       router.push(`/projects/${project.id}`)
     } catch (err: unknown) {
@@ -140,27 +141,30 @@ export default function NewProjectPage() {
         {/* ── Section: Contract & Financial ────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-[13px] font-bold text-black uppercase tracking-wider mb-5">Contract & Financial</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-5">
 
+            {/* Row 1: Contract Value | Currency */}
             <Field label="Contract Value" required>
-              <div className="flex gap-2 min-w-0">
-                <select className={`${selectCls} w-24 flex-shrink-0`} value={form.currency} onChange={set('currency')}>
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <input
-                  className={inputCls}
-                  type="number"
-                  min="0"
-                  step="1000"
-                  value={form.contractValue}
-                  onChange={set('contractValue')}
-                  placeholder="e.g. 84000000"
-                  required
-                />
-              </div>
+              <input
+                className={inputCls}
+                type="number"
+                min="0"
+                step="1000"
+                value={form.contractValue}
+                onChange={set('contractValue')}
+                placeholder="e.g. 84,000,000"
+                required
+              />
             </Field>
 
-            <Field label="Total Network Length (metres)">
+            <Field label="Currency">
+              <select className={selectCls} value={form.currency} onChange={set('currency')}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+
+            {/* Row 2: Total Network Length | Unit */}
+            <Field label="Total Network Length">
               <input
                 className={inputCls}
                 type="number"
@@ -168,10 +172,18 @@ export default function NewProjectPage() {
                 step="1"
                 value={form.totalNetworkLength}
                 onChange={set('totalNetworkLength')}
-                placeholder="e.g. 15000"
+                placeholder="e.g. 15,000"
               />
             </Field>
 
+            <Field label="Unit">
+              <select className={selectCls} value={form.lengthUnit} onChange={set('lengthUnit')}>
+                <option value="m">Metres (m)</option>
+                <option value="km">Kilometres (km)</option>
+              </select>
+            </Field>
+
+            {/* Row 3: Start Date | End Date */}
             <Field label="Contract Start Date">
               <input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} />
             </Field>
@@ -179,6 +191,7 @@ export default function NewProjectPage() {
             <Field label="Contract End Date">
               <input className={inputCls} type="date" value={form.contractEndDate} onChange={set('contractEndDate')} />
             </Field>
+
           </div>
         </div>
 
