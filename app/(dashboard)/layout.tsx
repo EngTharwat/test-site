@@ -10,11 +10,11 @@ function LogoIcon({ size = 22 }: { size?: number }) {
   const w = Math.round(size * 1.5)   // 120:80 = 1.5 ratio
   return (
     <svg width={w} height={size} viewBox="0 0 120 80" fill="none">
-      <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="white" strokeWidth="5" fill="none" />
-      <rect x="20"  y="20"  width="40"  height="40"  rx="5"   stroke="white" strokeWidth="5" fill="none" />
-      <rect x="65"  y="40"  width="5"   height="20"  rx="2.5" fill="white" />
-      <rect x="80"  y="30"  width="5"   height="30"  rx="2.5" fill="white" />
-      <rect x="95"  y="20"  width="5"   height="40"  rx="2.5" fill="white" />
+      <rect x="2.5"  y="2.5"  width="115" height="75" rx="13" stroke="white" strokeWidth="5" fill="none" />
+      <rect x="22.5" y="22.5" width="35"  height="35" rx="5"  stroke="white" strokeWidth="5" fill="none" />
+      <rect x="67.5" y="40"   width="5"   height="20" rx="2.5" fill="white" />
+      <rect x="82.5" y="30"   width="5"   height="30" rx="2.5" fill="white" />
+      <rect x="97.5" y="20"   width="5"   height="40" rx="2.5" fill="white" />
     </svg>
   )
 }
