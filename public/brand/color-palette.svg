@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="220" viewBox="0 0 680 220">
+  <!-- PMBoards Color Palette -->
+  <rect width="680" height="220" fill="white"/>
+
+  <!-- Title -->
+  <text x="24" y="34" font-family="'Space Grotesk', Arial, sans-serif" font-size="15" font-weight="600" fill="#374151" letter-spacing="-0.3">PMBoards — Brand Colors</text>
+
+  <!-- Black -->
+  <rect x="24"  y="52" width="90" height="90" rx="12" fill="#000000"/>
+  <text x="24"  y="160" font-family="'Space Grotesk', Arial, sans-serif" font-size="12" font-weight="600" fill="#000000">Black</text>
+  <text x="24"  y="176" font-family="'Space Grotesk', Arial, sans-serif" font-size="11" fill="#6B7280">#000000</text>
+  <text x="24"  y="192" font-family="'Space Grotesk', Arial, sans-serif" font-size="10" fill="#6B7280">Primary</text>
+
+  <!-- Blue -->
+  <rect x="134" y="52" width="90" height="90" rx="12" fill="#2563FF"/>
+  <text x="134" y="160" font-family="'Space Grotesk', Arial, sans-serif" font-size="12" font-weight="600" fill="#000000">Blue</text>
+  <text x="134" y="176" font-family="'Space Grotesk', Arial, sans-serif" font-size="11" fill="#6B7280">#2563FF</text>
+  <text x="134" y="192" font-family="'Space Grotesk', Arial, sans-serif" font-size="10" fill="#6B7280">Accent</text>
+
+  <!-- Violet -->
+  <rect x="244" y="52" width="90" height="90" rx="12" fill="#7C3AED"/>
+  <text x="244" y="160" font-family="'Space Grotesk', Arial, sans-serif" font-size="12" font-weight="600" fill="#000000">Violet</text>
+  <text x="244" y="176" font-family="'Space Grotesk', Arial, sans-serif" font-size="11" fill="#6B7280">#7C3AED</text>
+  <text x="244" y="192" font-family="'Space Grotesk', Arial, sans-serif" font-size="10" fill="#6B7280">Highlight</text>
+
+  <!-- Gray 900 -->
+  <rect x="354" y="52" width="90" height="90" rx="12" fill="#0F1115"/>
+  <text x="354" y="160" font-family="'Space Grotesk', Arial, sans-serif" font-size="12" font-weight="600" fill="#000000">Gray 900</text>
+  <text x="354" y="176" font-family="'Space Grotesk', Arial, sans-serif" font-size="11" fill="#6B7280">#0F1115</text>
+  <text x="354" y="192" font-family="'Space Grotesk', Arial, sans-serif" font-size="10" fill="#6B7280">Dark surface</text>
+
+  <!-- Gray 500 -->
+  <rect x="464" y="52" width="90" height="90" rx="12" fill="#6B7280"/>
+  <text x="464" y="160" font-family="'Space Grotesk', Arial, sans-serif" font-size="12" font-weight="600" fill="#000000">Gray 500</text>
+  <text x="464" y="176" font-family="'Space Grotesk', Arial, sans-serif" font-size="11" fill="#6B7280">#6B7280</text>
+  <text x="464" y="192" font-family="'Space Grotesk', Arial, sans-serif" font-size="10" fill="#6B7280">Muted text</text>
+
+  <!-- Gray 100 -->
+  <rect x="574" y="52" width="90" height="90" rx="12" fill="#F3F4F6" stroke="#D1D5DB" stroke-width="1"/>
+  <text x="574" y="160" font-family="'Space Grotesk', Arial, sans-serif" font-size="12" font-weight="600" fill="#000000">Gray 100</text>
+  <text x="574" y="176" font-family="'Space Grotesk', Arial, sans-serif" font-size="11" fill="#6B7280">#F3F4F6</text>
+  <text x="574" y="192" font-family="'Space Grotesk', Arial, sans-serif" font-size="10" fill="#6B7280">Background</text>
+</svg>

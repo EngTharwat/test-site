@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "PMBoards",
-  description: "Project management boards",
+  title: "PMBoards — Plan. Track. Progress.",
+  description: "Organize tasks visually with lists and cards. Simple, fast, and yours.",
 };
 
 export default function RootLayout({
@@ -19,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
+    <html lang="en" className={`${spaceGrotesk.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-white text-black">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

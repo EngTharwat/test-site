@@ -59,7 +59,7 @@ export default function LoginPage() {
             <button
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 tab === 'login'
-                  ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                  ? 'bg-white text-black border-b-2 border-black'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => { setTab('login'); setError('') }}
@@ -69,7 +69,7 @@ export default function LoginPage() {
             <button
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 tab === 'register'
-                  ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                  ? 'bg-white text-black border-b-2 border-black'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => { setTab('register'); setError('') }}
@@ -87,7 +87,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
                 placeholder="you@example.com"
               />
             </div>
@@ -99,7 +99,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
                 placeholder="••••••••"
               />
             </div>
@@ -111,7 +111,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="w-full bg-black text-white rounded-lg py-2 text-sm font-semibold hover:bg-[#0F1115] disabled:opacity-50 transition-colors"
             >
               {busy ? 'Please wait…' : tab === 'login' ? 'Log in' : 'Create account'}
             </button>

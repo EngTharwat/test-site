@@ -1,7 +1,25 @@
 @import "tailwindcss";
 
+:root {
+  --black: #000000;
+  --white: #ffffff;
+  --blue:  #2563FF;
+  --violet:#7C3AED;
+  --g900:  #0F1115;
+  --g700:  #374151;
+  --g500:  #6B7280;
+  --g300:  #D1D5DB;
+  --g100:  #F3F4F6;
+  --font:  var(--font-space-grotesk), 'Space Grotesk', Arial, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
-  background: #f9fafb;
-  color: #111827;
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font);
+  background: var(--white);
+  color: var(--black);
+  -webkit-font-smoothing: antialiased;
 }

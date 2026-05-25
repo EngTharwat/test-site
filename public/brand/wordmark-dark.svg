@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="120" viewBox="0 0 480 120">
+  <!-- PMBoards Wordmark — Dark (logo + name on white background) -->
+  <rect width="480" height="120" fill="white"/>
+
+  <!-- Icon -->
+  <rect x="20" y="20" width="80" height="80" rx="18" fill="#000000"/>
+  <rect x="34"  y="56" width="13" height="29" rx="3.5" fill="white"/>
+  <rect x="54"  y="44" width="13" height="41" rx="3.5" fill="white"/>
+  <rect x="73"  y="34" width="13" height="51" rx="3.5" fill="white"/>
+
+  <!-- Text -->
+  <text
+    x="118" y="72"
+    font-family="'Space Grotesk', Arial, sans-serif"
+    font-size="44"
+    font-weight="700"
+    fill="#000000"
+    letter-spacing="-2"
+  >PMBoards</text>
+</svg>

@@ -54,7 +54,7 @@ export default function DashboardPage() {
         <h2 className="text-2xl font-bold">Your Boards</h2>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#0F1115] transition-colors"
         >
           + New Board
         </button>
@@ -68,12 +68,12 @@ export default function DashboardPage() {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Board name…"
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
           />
           <button
             type="submit"
             disabled={creating}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="bg-black text-white text-sm px-4 py-2 rounded-lg hover:bg-[#0F1115] disabled:opacity-50 transition-colors"
           >
             {creating ? 'Creating…' : 'Create'}
           </button>
@@ -104,7 +104,7 @@ export default function DashboardPage() {
             <button
               key={board.id}
               onClick={() => router.push(`/board/${board.id}`)}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-4 text-left transition-colors min-h-[80px]"
+              className="bg-black hover:bg-[#0F1115] text-white rounded-xl p-4 text-left transition-colors min-h-[80px]"
             >
               <span className="font-semibold text-sm">{board.title}</span>
               {board.description && (

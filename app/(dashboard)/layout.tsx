@@ -24,7 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex flex-col">
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <span
-          className="font-bold text-blue-600 text-lg cursor-pointer"
+          className="font-bold text-black text-lg cursor-pointer"
           onClick={() => router.push('/dashboard')}
         >
           PMBoards
