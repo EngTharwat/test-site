@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import {
   Project, Zone, CashFlowRecord, CashFlowWithComputed,
+  ProjectStatus, ProjectType, Currency,
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
-  ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining,
-  MONTH_NAMES,
+  ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
+  MONTH_NAMES, CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
 } from '@/lib/types'
 
+// ── Tiny shared components ────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: Project['status'] }) {
   const c = STATUS_COLORS[status]
   return (
@@ -38,6 +40,179 @@ function ProgressBar({ pct, color = '#2563FF', height = 6 }: { pct: number; colo
   )
 }
 
+// ── Edit Project Modal ────────────────────────────────────────────────────────
+const inputCls  = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-colors placeholder:text-gray-400'
+const selectCls = inputCls + ' cursor-pointer'
+
+type EditForm = {
+  name: string; client: string; contractor: string; consultant: string; location: string
+  projectType: ProjectType; contractValue: string; currency: Currency
+  totalNetworkLength: string; contractStartDate: string; contractEndDate: string
+  status: ProjectStatus; description: string
+}
+
+function EditProjectModal({
+  project, onClose, onSaved,
+}: {
+  project: Project
+  onClose: () => void
+  onSaved: (updated: Project) => void
+}) {
+  const [form, setForm] = useState<EditForm>({
+    name:               project.name,
+    client:             project.client             || '',
+    contractor:         project.contractor         || '',
+    consultant:         project.consultant         || '',
+    location:           project.location           || '',
+    projectType:        project.projectType,
+    contractValue:      String(project.contractValue      || 0),
+    currency:           project.currency,
+    totalNetworkLength: String(project.totalNetworkLength || 0),
+    contractStartDate:  project.contractStartDate  || '',
+    contractEndDate:    project.contractEndDate    || '',
+    status:             project.status,
+    description:        project.description        || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err,    setErr]    = useState('')
+
+  const set = (k: keyof EditForm) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }))
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true); setErr('')
+    try {
+      const updated = await api.patch(`/api/projects/${project.id}`, {
+        ...form,
+        contractValue:      Number(form.contractValue)      || 0,
+        totalNetworkLength: Number(form.totalNetworkLength) || 0,
+      })
+      onSaved(updated)
+    } catch (ex: unknown) {
+      setErr(ex instanceof Error ? ex.message : 'Failed to save')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-10 px-4 overflow-y-auto"
+         onClick={onClose}>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl mb-10"
+           onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-[15px] font-bold text-black tracking-[-0.3px]">Edit Project</h2>
+          <button onClick={onClose} className="text-[#6B7280] hover:text-black text-xl leading-none">×</button>
+        </div>
+
+        <form onSubmit={submit} className="p-6 space-y-5">
+
+          {/* Name */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Project Name *</label>
+            <input className={inputCls} required value={form.name} onChange={set('name')} />
+          </div>
+
+          {/* Client | Contractor */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Client</label>
+              <input className={inputCls} value={form.client} onChange={set('client')} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Contractor</label>
+              <input className={inputCls} value={form.contractor} onChange={set('contractor')} />
+            </div>
+          </div>
+
+          {/* Consultant | Location */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Consultant</label>
+              <input className={inputCls} value={form.consultant} onChange={set('consultant')} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Location</label>
+              <input className={inputCls} value={form.location} onChange={set('location')} />
+            </div>
+          </div>
+
+          {/* Type | Status */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Project Type</label>
+              <select className={selectCls} value={form.projectType} onChange={set('projectType')}>
+                {PROJECT_TYPES.map(t => <option key={t} value={t}>{PROJECT_TYPE_LABELS[t]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Status</label>
+              <select className={selectCls} value={form.status} onChange={set('status')}>
+                {PROJECT_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Contract Value | Currency */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Contract Value</label>
+              <input className={inputCls} type="number" min="0" step="1000" value={form.contractValue} onChange={set('contractValue')} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Currency</label>
+              <select className={selectCls} value={form.currency} onChange={set('currency')}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Network Length */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Total Network Length (m)</label>
+              <input className={inputCls} type="number" min="0" step="1" value={form.totalNetworkLength} onChange={set('totalNetworkLength')} />
+            </div>
+          </div>
+
+          {/* Start | End dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Contract Start Date</label>
+              <input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Contract End Date</label>
+              <input className={inputCls} type="date" value={form.contractEndDate} onChange={set('contractEndDate')} />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Description</label>
+            <textarea className={inputCls + ' resize-none'} rows={3} value={form.description} onChange={set('description')} />
+          </div>
+
+          {err && <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">{err}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={saving}
+              className="bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-[#0F1115] disabled:opacity-50 transition-colors">
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button type="button" onClick={onClose} className="text-sm text-[#6B7280] hover:text-black transition-colors">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function ProjectOverviewPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
@@ -47,6 +222,8 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [cashflow,  setCashflow] = useState<CashFlowWithComputed[]>([])
   const [loading,   setLoading]  = useState(true)
   const [error,     setError]    = useState('')
+  const [editOpen,  setEditOpen] = useState(false)
+  const [deleting,  setDeleting] = useState(false)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -58,7 +235,6 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       setProject(proj)
       setZones(zoneData)
 
-      // Compute cumulative values
       let cumP = 0, cumA = 0
       const withCumulative: CashFlowWithComputed[] = (cfData as CashFlowRecord[])
         .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
@@ -77,6 +253,19 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  async function handleDelete() {
+    if (!project) return
+    if (!confirm(`Delete "${project.name}"?\n\nAll zones, segments, and cash flow data will be permanently removed. This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      await api.delete(`/api/projects/${projectId}`)
+      router.push('/dashboard')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete project')
+      setDeleting(false)
+    }
+  }
+
   if (loading) return (
     <div className="p-8 space-y-4">
       {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-200 rounded-xl animate-pulse" />)}
@@ -92,7 +281,6 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const days        = project.contractEndDate ? daysRemaining(project.contractEndDate) : null
   const totalCFPlan = cashflow.reduce((s, r) => s + r.planned, 0)
   const totalCFAct  = cashflow.reduce((s, r) => s + r.actual, 0)
-  const lastCF      = cashflow[cashflow.length - 1]
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -116,19 +304,36 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                 {project.contractStartDate} → {project.contractEndDate}
                 {days !== null && (
                   <span className={`ml-2 font-semibold ${days < 0 ? 'text-red-600' : days < 30 ? 'text-orange-600' : 'text-[#6B7280]'}`}>
-                    ({days >= 0 ? `${days} days left` : `${Math.abs(days)} days overdue`})
+                    ({days >= 0 ? `${fmtN(days)} days left` : `${fmtN(Math.abs(days))} days overdue`})
                   </span>
                 )}
               </p>
             )}
             {project.description && <p className="text-[12px] text-[#6B7280] mt-2">{project.description}</p>}
           </div>
-          <button
-            onClick={() => router.push(`/projects/${projectId}/zones`)}
-            className="flex-shrink-0 bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#0F1115] transition-colors"
-          >
-            Manage Zones →
-          </button>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-sm font-semibold text-[#374151] bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-sm font-semibold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+            <button
+              onClick={() => router.push(`/projects/${projectId}/zones`)}
+              className="text-sm font-semibold text-white bg-black hover:bg-[#0F1115] px-4 py-2 rounded-lg transition-colors"
+            >
+              Manage Zones →
+            </button>
+          </div>
         </div>
       </div>
 
@@ -147,7 +352,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         <KpiCard
           label="Overall Progress"
           value={`${project.completionPct || 0}%`}
-          sub={`${zones.length} zones`}
+          sub={`${fmtN(zones.length)} zones`}
           accent={project.completionPct >= 80 ? '#22c55e' : project.completionPct >= 40 ? '#f97316' : '#2563FF'}
         />
         <KpiCard
@@ -215,7 +420,6 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               <p className="text-sm text-[#6B7280] text-center py-4">Add zones and segments to see activity breakdown</p>
             ) : (
               ACTIVITY_KEYS.map(act => {
-                // For now show zone-level summary — will be segment-computed in Phase 2
                 const pct = project.completionPct || 0
                 return (
                   <div key={act.key}>
@@ -258,6 +462,18 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
           )}
         </div>
       </div>
+
+      {/* ── Edit Modal ────────────────────────────────────── */}
+      {editOpen && project && (
+        <EditProjectModal
+          project={project}
+          onClose={() => setEditOpen(false)}
+          onSaved={updated => {
+            setProject(updated)
+            setEditOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
