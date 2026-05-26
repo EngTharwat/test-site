@@ -32,8 +32,9 @@ export async function GET(request: NextRequest) {
       .get()
 
     if (snap.empty) {
+      // Email/password user without a portfolio — still an admin, just needs setup
       return Response.json({
-        role: null, portfolioId: null, portfolioSlug: null,
+        role: 'admin', portfolioId: null, portfolioSlug: null,
         portfolioName: null, username: null, needsPortfolio: true,
       })
     }

@@ -100,6 +100,24 @@ export default function MembersPage() {
     )
   }
 
+  if (profile.needsPortfolio) {
+    return (
+      <div className="p-8 max-w-md mx-auto text-center">
+        <div className="text-4xl mb-4">🏢</div>
+        <h2 className="text-xl font-bold text-black mb-2">Set up your portfolio first</h2>
+        <p className="text-[13px] text-[#6B7280] mb-6">
+          You need to create your company portfolio before you can add team members.
+        </p>
+        <button
+          onClick={() => router.push('/register')}
+          className="bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-[#0F1115] transition-colors"
+        >
+          Create Portfolio →
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto">
 

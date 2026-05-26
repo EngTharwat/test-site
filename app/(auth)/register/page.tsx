@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { auth } from '@/lib/firebase'
 import { api } from '@/lib/api'
 
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-colors placeholder:text-gray-400'
@@ -13,7 +12,7 @@ function toSlug(text: string): string {
 }
 
 export default function RegisterPage() {
-  const { user, loading, signUp, refreshProfile } = useAuth()
+  const { user, loading, profile, profileLoading, signUp, refreshProfile } = useAuth()
   const router = useRouter()
 
   const [step,         setStep]         = useState<1 | 2>(1)
@@ -26,11 +25,16 @@ export default function RegisterPage() {
   const [busy,         setBusy]         = useState(false)
 
   useEffect(() => {
-    if (!loading && user) {
-      // User already logged in — check if they need a portfolio
+    if (loading || profileLoading) return
+    if (!user) return
+    if (profile?.needsPortfolio) {
+      // Logged in but no portfolio yet — jump straight to step 2
+      setStep(2)
+    } else if (profile && !profile.needsPortfolio) {
+      // Already fully set up — go to dashboard
       router.replace('/dashboard')
     }
-  }, [user, loading, router])
+  }, [user, loading, profile, profileLoading, router])
 
   function handlePortfolioNameChange(val: string) {
     setPortfolioName(val)

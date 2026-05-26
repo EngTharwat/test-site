@@ -295,16 +295,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const role = profile.role
     if (!role) return
 
-    // Admin needs to create a portfolio first
-    if (profile.needsPortfolio && pathname !== '/register') {
+    // Admin needs to create a portfolio first — redirect to setup
+    if (
+      profile.needsPortfolio &&
+      pathname !== '/register' &&
+      !pathname.startsWith('/admin')  // allow /admin/members to show setup prompt
+    ) {
       router.replace('/register')
       return
-    }
-
-    // Non-portfolio-viewers shouldn't be on /dashboard
-    if (pathname === '/dashboard' && !can(role, 'canViewPortfolio')) {
-      // redirect to first project they can access
-      router.replace('/dashboard')  // show them the list (dashboard handles empty state gracefully)
     }
   }, [profile, profileLoading, pathname, router])
 
