@@ -149,7 +149,7 @@ export default function NewProjectPage() {
                 className={inputCls}
                 type="number"
                 min="0"
-                step="1000"
+                step="any"
                 value={form.contractValue}
                 onChange={set('contractValue')}
                 placeholder="e.g. 84,000,000"

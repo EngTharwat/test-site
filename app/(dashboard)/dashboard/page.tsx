@@ -147,7 +147,7 @@ function EditModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Contract Value</label>
-              <input className={inputCls} type="number" min="0" step="1000" value={form.contractValue} onChange={set('contractValue')} />
+              <input className={inputCls} type="number" min="0" step="any" value={form.contractValue} onChange={set('contractValue')} />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-[#374151] mb-1.5">Currency</label>
