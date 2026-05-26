@@ -1,15 +1,11 @@
 import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
+import { resolveAccess, assertProjectAccess } from '@/lib/access'
+import { can } from '@/lib/roles'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string }> }
-
-async function assertOwner(userId: string, projectId: string) {
-  const doc = await adminDb.collection('projects').doc(projectId).get()
-  if (!doc.exists) throw Object.assign(new Error('Project not found'), { status: 404 })
-  if (doc.data()!.userId !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 })
-}
 
 const defaultActivity = (qty: number) => ({
   plannedQty: qty, actualQty: 0, pct: 0,
@@ -22,7 +18,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { projectId } = await params
-    await assertOwner(user.uid, projectId)
+    const access = await resolveAccess(user)
+    await assertProjectAccess(access, projectId)
+
+    if (!can(access.role, 'canViewSegments')) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const { searchParams } = new URL(request.url)
     const zoneId = searchParams.get('zoneId')
@@ -47,7 +48,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { projectId } = await params
-    await assertOwner(user.uid, projectId)
+    const access = await resolveAccess(user)
+    await assertProjectAccess(access, projectId)
+
+    if (!can(access.role, 'canEditSegments')) {
+      return Response.json({ error: 'Forbidden — cannot create segments' }, { status: 403 })
+    }
 
     const body = await request.json()
     const {
@@ -74,7 +80,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       startLng:   startLng != null   ? Number(startLng) : null,
       endLat:     endLat   != null   ? Number(endLat)   : null,
       endLng:     endLng   != null   ? Number(endLng)   : null,
-      // Activities — use supplied or default
       excavation:   excavation  ?? defaultActivity(len),
       piping:       piping      ?? defaultActivity(len),
       backfilling:  backfilling ?? defaultActivity(len),
@@ -88,7 +93,6 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const ref = await adminDb.collection('projects').doc(projectId).collection('segments').add(data)
 
-    // Update project + zone aggregates
     await Promise.all([
       adminDb.collection('projects').doc(projectId).update({
         totalSegments: FieldValue.increment(1),
@@ -98,7 +102,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         segmentCount: FieldValue.increment(1),
         totalLength:  FieldValue.increment(len),
         updatedAt:    FieldValue.serverTimestamp(),
-      }).catch(() => {}), // zone may not exist in some edge cases
+      }).catch(() => {}),
     ])
 
     const doc = await ref.get()

@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
+import { resolveAccess } from '@/lib/access'
+import { can } from '@/lib/roles'
 import { FieldValue } from 'firebase-admin/firestore'
 
 export async function GET(request: NextRequest) {
@@ -8,7 +10,15 @@ export async function GET(request: NextRequest) {
     const user = await verifyAuth(request)
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const snap = await adminDb.collection('projects').where('userId', '==', user.uid).get()
+    const access = await resolveAccess(user)
+
+    // Members without portfolio access to the dashboard still need the project list
+    // (so they can navigate into a project). Only the dashboard UI hides it.
+    const snap = await adminDb
+      .collection('projects')
+      .where('userId', '==', access.adminUserId)
+      .get()
+
     const projects = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
@@ -24,6 +34,11 @@ export async function POST(request: NextRequest) {
     const user = await verifyAuth(request)
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const access = await resolveAccess(user)
+    if (!can(access.role, 'canEditProject')) {
+      return Response.json({ error: 'Forbidden — only admins can create projects' }, { status: 403 })
+    }
+
     const body = await request.json()
     const {
       name, client, contractor, consultant, location, projectType,
@@ -34,7 +49,8 @@ export async function POST(request: NextRequest) {
     if (!name?.trim()) return Response.json({ error: 'Project name is required' }, { status: 400 })
 
     const data = {
-      userId:              user.uid,
+      userId:              access.adminUserId,
+      portfolioId:         access.portfolioId ?? null,
       name:                name.trim(),
       client:              client?.trim()              ?? '',
       contractor:          contractor?.trim()          ?? '',
@@ -48,7 +64,6 @@ export async function POST(request: NextRequest) {
       contractEndDate:     contractEndDate             ?? '',
       status:              status                      ?? 'planning',
       description:         description?.trim()         ?? '',
-      // Aggregates — initialised at zero, updated by child writes
       totalZones:      0,
       totalSegments:   0,
       executedLength:  0,

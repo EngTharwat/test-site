@@ -4,10 +4,11 @@ import React, { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
+import { can } from '@/lib/roles'
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 function LogoIcon({ size = 22 }: { size?: number }) {
-  const w = Math.round(size * 1.5)   // 120:80 = 1.5 ratio
+  const w = Math.round(size * 1.5)
   return (
     <svg width={w} height={size} viewBox="0 0 120 80" fill="none">
       <rect x="2.5"  y="2.5"  width="115" height="75" rx="13" stroke="white" strokeWidth="5" fill="none" />
@@ -19,7 +20,7 @@ function LogoIcon({ size = 22 }: { size?: number }) {
   )
 }
 
-// ── Nav Icons ────────────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 const Icon = {
   Portfolio: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -63,6 +64,14 @@ const Icon = {
       <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
     </svg>
   ),
+  Team: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  ),
   Back: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="19" y1="12" x2="5" y2="12"/>
@@ -82,128 +91,182 @@ const Icon = {
 function NavItem({
   href, icon: IconComp, label, active, disabled = false,
 }: {
-  href: string
-  icon: () => React.ReactElement
-  label: string
-  active: boolean
-  disabled?: boolean
+  href: string; icon: () => React.ReactElement; label: string
+  active: boolean; disabled?: boolean
 }) {
   const base = 'flex items-center gap-2.5 mx-2 px-2.5 py-2 rounded-md text-[12px] font-medium transition-colors select-none'
   if (disabled) return (
     <div className={`${base} text-white/20 cursor-not-allowed`}>
-      <IconComp />
-      {label}
+      <IconComp />{label}
       <span className="ml-auto text-[9px] text-white/20 font-normal">Soon</span>
     </div>
   )
   return (
-    <Link
-      href={href}
-      className={`${base} ${
-        active
-          ? 'bg-white/[0.08] text-white'
-          : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
-      }`}
-    >
-      <IconComp />
-      {label}
+    <Link href={href} className={`${base} ${
+      active ? 'bg-white/[0.08] text-white' : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
+    }`}>
+      <IconComp />{label}
     </Link>
   )
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-function Sidebar({ user, onSignOut }: { user: { email: string | null }; onSignOut: () => void }) {
-  const pathname = usePathname()
+// ── Role badge ────────────────────────────────────────────────────────────────
+const ROLE_BADGE_COLORS: Record<string, string> = {
+  admin:           'bg-purple-500/20 text-purple-300',
+  project_manager: 'bg-blue-500/20   text-blue-300',
+  site_engineer:   'bg-orange-500/20 text-orange-300',
+  surveyor:        'bg-green-500/20  text-green-300',
+}
+const ROLE_LABELS: Record<string, string> = {
+  admin:           'Admin',
+  project_manager: 'Proj. Manager',
+  site_engineer:   'Site Engineer',
+  surveyor:        'Surveyor',
+}
 
-  // Extract projectId from URL: /projects/[id]/...
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function Sidebar({
+  userEmail, onSignOut,
+}: {
+  userEmail: string | null; onSignOut: () => void
+}) {
+  const { profile } = useAuth()
+  const pathname    = usePathname()
+
   const projectMatch = pathname.match(/\/projects\/([^/]+)/)
   const projectId    = projectMatch?.[1] ?? null
   const inProject    = !!projectId
+  const role         = profile?.role ?? 'admin'
 
   const is = (path: string) => pathname === path || pathname.startsWith(path + '/')
 
   return (
     <aside className="w-[220px] flex-shrink-0 bg-[#0F1115] flex flex-col border-r border-white/[0.06] h-screen sticky top-0">
 
-      {/* Logo */}
+      {/* Logo + portfolio name */}
       <Link href="/dashboard" className="flex items-center gap-2.5 px-4 py-5 border-b border-white/[0.06] hover:opacity-80 transition-opacity">
         <LogoIcon size={24} />
-        <span className="text-white text-[15px] font-bold tracking-[-0.4px]">PMBoards</span>
+        <div className="min-w-0">
+          <div className="text-white text-[14px] font-bold tracking-[-0.4px] truncate">
+            {profile?.portfolioName ?? 'PMBoards'}
+          </div>
+          {profile?.portfolioSlug && (
+            <div className="text-white/30 text-[10px] font-mono truncate">{profile.portfolioSlug}</div>
+          )}
+        </div>
       </Link>
 
       {/* Navigation */}
       <nav className="flex-1 py-3 overflow-y-auto flex flex-col gap-0.5">
 
-        {/* Portfolio */}
-        <NavItem
-          href="/dashboard"
-          icon={Icon.Portfolio}
-          label="Portfolio"
-          active={pathname === '/dashboard'}
-        />
+        {/* Portfolio (admin + project manager) */}
+        {can(role, 'canViewPortfolio') && (
+          <NavItem
+            href="/dashboard"
+            icon={Icon.Portfolio}
+            label="Portfolio"
+            active={pathname === '/dashboard'}
+          />
+        )}
+
+        {/* Team management (admin only) */}
+        {can(role, 'canManageTeam') && (
+          <NavItem
+            href="/admin/members"
+            icon={Icon.Team}
+            label="Team"
+            active={is('/admin/members')}
+          />
+        )}
 
         {/* Project-specific nav */}
         {inProject && (
           <>
             <div className="mx-4 my-2 border-t border-white/[0.06]" />
 
-            {/* Back */}
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 mx-2 px-2.5 py-1.5 text-white/30 hover:text-white/60 text-[11px] transition-colors"
-            >
-              <Icon.Back />
-              Back to Portfolio
-            </Link>
+            {can(role, 'canViewPortfolio') && (
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 mx-2 px-2.5 py-1.5 text-white/30 hover:text-white/60 text-[11px] transition-colors"
+              >
+                <Icon.Back />
+                Back to Portfolio
+              </Link>
+            )}
 
             <div className="px-4 py-1.5">
               <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Project</span>
             </div>
 
-            <NavItem
-              href={`/projects/${projectId}`}
-              icon={Icon.Overview}
-              label="Overview"
-              active={pathname === `/projects/${projectId}`}
-            />
-            <NavItem
-              href={`/projects/${projectId}/zones`}
-              icon={Icon.Zones}
-              label="Zones"
-              active={is(`/projects/${projectId}/zones`)}
-            />
-            <NavItem
-              href={`/projects/${projectId}/segments`}
-              icon={Icon.Segments}
-              label="Segments"
-              active={is(`/projects/${projectId}/segments`)}
-            />
-            <NavItem
-              href={`/projects/${projectId}/progress`}
-              icon={Icon.Progress}
-              label="Progress"
-              active={is(`/projects/${projectId}/progress`)}
-            />
-            <NavItem
-              href={`/projects/${projectId}/cashflow`}
-              icon={Icon.CashFlow}
-              label="Cash Flow"
-              active={is(`/projects/${projectId}/cashflow`)}
-            />
-            <NavItem
-              href={`/projects/${projectId}/map`}
-              icon={Icon.Map}
-              label="Map / GIS"
-              active={false}
-              disabled
-            />
+            {can(role, 'canViewOverview') && (
+              <NavItem
+                href={`/projects/${projectId}`}
+                icon={Icon.Overview}
+                label="Overview"
+                active={pathname === `/projects/${projectId}`}
+              />
+            )}
+
+            {can(role, 'canViewZones') && (
+              <NavItem
+                href={`/projects/${projectId}/zones`}
+                icon={Icon.Zones}
+                label="Zones"
+                active={is(`/projects/${projectId}/zones`)}
+              />
+            )}
+
+            {can(role, 'canViewSegments') && (
+              <NavItem
+                href={`/projects/${projectId}/segments`}
+                icon={Icon.Segments}
+                label="Segments"
+                active={is(`/projects/${projectId}/segments`)}
+              />
+            )}
+
+            {can(role, 'canViewProgress') && (
+              <NavItem
+                href={`/projects/${projectId}/progress`}
+                icon={Icon.Progress}
+                label="Progress"
+                active={is(`/projects/${projectId}/progress`)}
+              />
+            )}
+
+            {can(role, 'canViewCashFlow') && (
+              <NavItem
+                href={`/projects/${projectId}/cashflow`}
+                icon={Icon.CashFlow}
+                label="Cash Flow"
+                active={is(`/projects/${projectId}/cashflow`)}
+              />
+            )}
+
+            {can(role, 'canViewMap') && (
+              <NavItem
+                href={`/projects/${projectId}/map`}
+                icon={Icon.Map}
+                label="Map / GIS"
+                active={false}
+                disabled
+              />
+            )}
           </>
         )}
       </nav>
 
       {/* User footer */}
-      <div className="border-t border-white/[0.06] p-4">
-        <p className="text-[11px] text-white/40 truncate mb-2">{user.email}</p>
+      <div className="border-t border-white/[0.06] p-4 space-y-2">
+        {/* Role badge */}
+        {profile?.role && (
+          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE_COLORS[profile.role] ?? 'bg-white/10 text-white/50'}`}>
+            {ROLE_LABELS[profile.role] ?? profile.role}
+          </span>
+        )}
+        <p className="text-[11px] text-white/40 truncate">
+          {profile?.username ? `@${profile.username}` : userEmail}
+        </p>
         <button
           onClick={onSignOut}
           className="text-[11px] text-white/30 hover:text-white/70 transition-colors"
@@ -217,15 +280,35 @@ function Sidebar({ user, onSignOut }: { user: { email: string | null }; onSignOu
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, signOut } = useAuth()
-  const router  = useRouter()
+  const { user, loading, profile, profileLoading, signOut } = useAuth()
+  const router   = useRouter()
+  const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [user, loading, router])
 
-  if (loading || !user) {
+  // Redirect members away from pages they can't access
+  useEffect(() => {
+    if (!profile || profileLoading) return
+    const role = profile.role
+    if (!role) return
+
+    // Admin needs to create a portfolio first
+    if (profile.needsPortfolio && pathname !== '/register') {
+      router.replace('/register')
+      return
+    }
+
+    // Non-portfolio-viewers shouldn't be on /dashboard
+    if (pathname === '/dashboard' && !can(role, 'canViewPortfolio')) {
+      // redirect to first project they can access
+      router.replace('/dashboard')  // show them the list (dashboard handles empty state gracefully)
+    }
+  }, [profile, profileLoading, pathname, router])
+
+  if (loading || profileLoading || !user) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0F1115]">
         <LogoIcon size={32} />
@@ -243,14 +326,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <Sidebar user={user} onSignOut={handleSignOut} />
+        <Sidebar userEmail={user.email} onSignOut={handleSignOut} />
       </div>
 
       {/* Mobile sidebar overlay */}
       {menuOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="flex-shrink-0">
-            <Sidebar user={user} onSignOut={handleSignOut} />
+            <Sidebar userEmail={user.email} onSignOut={handleSignOut} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setMenuOpen(false)} />
         </div>
@@ -258,14 +341,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-[#0F1115] border-b border-white/[0.06]">
           <button onClick={() => setMenuOpen(true)} className="text-white/60 hover:text-white">
             <Icon.Menu />
           </button>
           <LogoIcon size={20} />
-          <span className="text-white text-[14px] font-bold">PMBoards</span>
+          <span className="text-white text-[14px] font-bold">
+            {profile?.portfolioName ?? 'PMBoards'}
+          </span>
         </div>
 
         <main className="flex-1 overflow-y-auto">

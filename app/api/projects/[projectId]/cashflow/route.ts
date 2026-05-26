@@ -1,15 +1,11 @@
 import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
+import { resolveAccess, assertProjectAccess } from '@/lib/access'
+import { can } from '@/lib/roles'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string }> }
-
-async function assertOwner(userId: string, projectId: string) {
-  const doc = await adminDb.collection('projects').doc(projectId).get()
-  if (!doc.exists) throw Object.assign(new Error('Project not found'), { status: 404 })
-  if (doc.data()!.userId !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 })
-}
 
 export async function GET(request: NextRequest, { params }: Params) {
   try {
@@ -17,7 +13,13 @@ export async function GET(request: NextRequest, { params }: Params) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { projectId } = await params
-    await assertOwner(user.uid, projectId)
+    const access = await resolveAccess(user)
+    await assertProjectAccess(access, projectId)
+
+    if (!can(access.role, 'canViewCashFlow')) {
+      // Return empty array rather than 403 so the overview page renders cleanly
+      return Response.json([])
+    }
 
     const snap = await adminDb
       .collection('projects').doc(projectId)
@@ -39,7 +41,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { projectId } = await params
-    await assertOwner(user.uid, projectId)
+    const access = await resolveAccess(user)
+    await assertProjectAccess(access, projectId)
+
+    if (!can(access.role, 'canEditCashFlow')) {
+      return Response.json({ error: 'Forbidden — cannot edit cash flow' }, { status: 403 })
+    }
 
     const body = await request.json()
     const { year, month, planned, actual } = body
@@ -50,11 +57,11 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const data = {
       projectId,
-      year:     Number(year),
-      month:    Number(month),
+      year:    Number(year),
+      month:   Number(month),
       monthKey,
-      planned:  Number(planned) || 0,
-      actual:   Number(actual)  || 0,
+      planned: Number(planned) || 0,
+      actual:  Number(actual)  || 0,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }

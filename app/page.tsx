@@ -4,12 +4,8 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 
-/* ─────────────────────────────────────────────────────────
-   Logo: three growing vertical bars in a rounded square
-   Two variants — outline (light bg) and filled (dark bg)
-───────────────────────────────────────────────────────── */
 function LogoIcon({ size = 34, variant = 'outline' }: { size?: number; variant?: 'outline' | 'filled' }) {
-  const w = Math.round(size * 1.5)   // 120:80 = 1.5 ratio
+  const w = Math.round(size * 1.5)
   const c = variant === 'filled' ? 'white' : 'black'
   return (
     <svg width={w} height={size} viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -22,88 +18,6 @@ function LogoIcon({ size = 34, variant = 'outline' }: { size?: number; variant?:
   )
 }
 
-/* ─────────────────────────────────────────────────────────
-   Demo board mockup — dark dashboard style
-───────────────────────────────────────────────────────── */
-function DemoBoard() {
-  const cols = [
-    {
-      label: 'To Do',
-      cards: ['Design wireframes', 'Set up Firebase', 'Write API docs'],
-    },
-    {
-      label: 'In Progress',
-      cards: ['Build login page', 'Create board view'],
-    },
-    {
-      label: 'Done',
-      cards: ['Project setup', 'Auth flow', 'Dashboard UI'],
-    },
-  ]
-
-  return (
-    <div className="w-full rounded-2xl overflow-hidden border border-gray-200 shadow-[0_32px_80px_rgba(0,0,0,.12),0_2px_8px_rgba(0,0,0,.06)]">
-      {/* Browser bar */}
-      <div className="bg-black px-4 py-3 flex items-center gap-2">
-        <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
-        <span className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E]" />
-        <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
-        <span className="ml-3 text-[#6B7280] text-xs">pmboards.com/board/my-project</span>
-      </div>
-
-      {/* Body */}
-      <div className="bg-[#0F1115] grid grid-cols-[160px_1fr] min-h-[320px]">
-        {/* Sidebar */}
-        <div className="bg-[#161B22] border-r border-white/5 py-4">
-          <div className="flex items-center gap-2 px-3 pb-3 mb-2 border-b border-white/5">
-            <LogoIcon size={18} variant="filled" />
-            <span className="text-white text-xs font-semibold">PMBoards</span>
-          </div>
-          {['Home', 'Projects', 'Tasks', 'Calendar', 'Reports'].map((item, i) => (
-            <div
-              key={item}
-              className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                i === 0
-                  ? 'text-white bg-white/7 rounded-md mx-2 px-2'
-                  : 'text-white/40 hover:text-white/70'
-              }`}
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-
-        {/* Main */}
-        <div className="p-4">
-          <div className="text-white text-sm font-bold mb-3">My Project Board</div>
-          <div className="flex gap-3">
-            {cols.map((col) => (
-              <div key={col.label} className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl p-3">
-                <div className="text-white/60 text-[10px] font-semibold uppercase tracking-wide mb-2.5">
-                  {col.label}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {col.cards.map((card) => (
-                    <div
-                      key={card}
-                      className="bg-white/[0.06] rounded-lg px-2.5 py-2 text-[11px] text-white/75 font-medium border border-white/[0.06]"
-                    >
-                      {card}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────
-   Social icons
-───────────────────────────────────────────────────────── */
 function LinkedInIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -120,9 +34,6 @@ function WhatsAppIcon() {
   )
 }
 
-/* ─────────────────────────────────────────────────────────
-   Landing page
-───────────────────────────────────────────────────────── */
 export default function LandingPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -134,122 +45,122 @@ export default function LandingPage() {
   if (loading) return null
 
   return (
-    <div className="md:h-screen md:overflow-hidden flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-white">
 
-      {/* ── NAV ─────────────────────────────────────────── */}
-      <nav
-        className="flex-shrink-0 flex items-center justify-between px-12 py-4 bg-white/95 backdrop-blur border-b border-[#F3F4F6]"
-        style={{ fontFamily: 'var(--font)' }}
-      >
+      {/* ── NAV ─────────────────────────────────────────────────── */}
+      <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6]">
         <div className="flex items-center gap-2.5">
-          <LogoIcon size={34} variant="outline" />
-          <span className="text-[19px] font-bold text-black tracking-[-0.5px]">PMBoards</span>
+          <LogoIcon size={30} variant="outline" />
+          <span className="text-[18px] font-bold text-black tracking-[-0.5px]">PMBoards</span>
         </div>
         <button
           onClick={() => router.push('/login')}
-          className="text-[13px] font-500 text-black bg-black text-white border-none rounded-lg px-5 py-2 cursor-pointer transition-all hover:-translate-y-px"
-          style={{ fontWeight: 600, color: 'white', background: 'black' }}
+          className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors"
         >
-          Sign in
+          Sign in →
         </button>
       </nav>
 
-      {/* ── HERO ────────────────────────────────────────── */}
-      <main className="flex-1 flex items-center justify-center px-12 py-8 md:py-0 overflow-hidden relative">
+      {/* ── HERO ────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
 
-        {/* Subtle grid + radial glow background */}
-        <div
-          className="absolute inset-0 pointer-events-none z-0"
-          style={{
-            backgroundImage: `
-              radial-gradient(circle at 20% 40%, rgba(37,99,255,.06) 0%, transparent 50%),
-              radial-gradient(circle at 80% 60%, rgba(124,58,237,.05) 0%, transparent 50%),
-              linear-gradient(rgba(0,0,0,.035) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,0,0,.035) 1px, transparent 1px)
-            `,
-            backgroundSize: '100% 100%, 100% 100%, 32px 32px, 32px 32px',
-          }}
-        />
+        {/* Badge */}
+        <div className="inline-flex items-center gap-1.5 bg-[#F3F4F6] border border-[#E5E7EB] rounded-full px-3.5 py-1.5 text-[12px] font-medium text-[#374151] mb-8">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#2563FF]" />
+          PMO Platform for Sewer Network Projects
+        </div>
 
-        <div className="relative z-10 w-full max-w-5xl flex flex-col md:flex-row items-center gap-10 md:gap-16">
+        <h1 className="text-[clamp(36px,6vw,68px)] font-bold leading-[1.05] tracking-[-2.5px] text-black max-w-2xl mb-5">
+          One platform.<br />
+          <span style={{ color: '#2563FF' }}>Your whole team.</span>
+        </h1>
 
-          {/* Left: text + CTA */}
-          <div className="flex-shrink-0 text-center md:text-left">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-1.5 bg-[#F3F4F6] border border-[#D1D5DB] rounded-full px-3.5 py-1.5 text-[12px] font-medium text-[#374151] mb-7">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#2563FF]" />
-              Plan. Track. Progress.
+        <p className="text-[16px] text-[#6B7280] leading-[1.7] max-w-lg mb-14">
+          Portfolio admins manage projects, zones, and cash flow. Team members get
+          role-matched access — what they need, nothing more.
+        </p>
+
+        {/* ── TWO CTA CARDS ───────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
+
+          {/* Create Portfolio — Admin */}
+          <div className="bg-[#0F1115] rounded-2xl p-8 text-left flex flex-col">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center mb-5">
+              <LogoIcon size={18} variant="filled" />
             </div>
-
-            <h1
-              className="text-[clamp(36px,5vw,64px)] font-bold leading-[1.05] tracking-[-2px] text-black max-w-xs mb-4"
-              style={{ letterSpacing: '-2px' }}
-            >
-              Your boards.<br />
-              Your <span style={{ color: '#2563FF' }}>workflow.</span>
-            </h1>
-
-            <p className="text-[15px] text-[#6B7280] leading-[1.7] max-w-[320px] mb-8 mx-auto md:mx-0">
-              Organize tasks visually with lists and cards. Simple, fast, and built for teams that move fast.
+            <h2 className="text-[18px] font-bold text-white tracking-[-0.4px] mb-2">
+              Create a Portfolio
+            </h2>
+            <p className="text-[13px] text-white/50 leading-relaxed mb-6 flex-1">
+              Register as an admin, set up your company portfolio, add projects,
+              and invite your team.
             </p>
-
-            <div className="flex items-center gap-3 flex-wrap justify-center md:justify-start">
-              <button
-                onClick={() => router.push('/login')}
-                className="text-[15px] font-semibold text-white bg-black border-none rounded-[10px] px-7 py-3.5 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,.15)]"
-              >
-                Create a project →
-              </button>
-              <button
-                onClick={() => router.push('/login')}
-                className="text-[15px] font-medium text-black bg-transparent border border-[#D1D5DB] rounded-[10px] px-7 py-3.5 cursor-pointer transition-all hover:border-black"
-              >
-                Sign in
-              </button>
-            </div>
+            <button
+              onClick={() => router.push('/register')}
+              className="w-full bg-[#2563FF] hover:bg-[#1d4fd8] text-white text-[14px] font-semibold py-3 rounded-xl transition-colors"
+            >
+              Get Started →
+            </button>
+            <p className="text-[11px] text-white/30 mt-3 text-center">Admin registration</p>
           </div>
 
-          {/* Right: demo board */}
-          <div className="flex-1 w-full min-w-0 max-w-2xl">
-            <DemoBoard />
+          {/* Team Login */}
+          <div className="bg-white rounded-2xl p-8 text-left flex flex-col border border-gray-200">
+            <div className="w-10 h-10 rounded-xl bg-[#F3F4F6] flex items-center justify-center mb-5 text-xl">
+              👥
+            </div>
+            <h2 className="text-[18px] font-bold text-black tracking-[-0.4px] mb-2">
+              Join Your Team
+            </h2>
+            <p className="text-[13px] text-[#6B7280] leading-relaxed mb-6 flex-1">
+              Your admin has already set up the portfolio. Enter your portfolio name
+              and username to access your workspace.
+            </p>
+            <button
+              onClick={() => router.push('/login?tab=member')}
+              className="w-full bg-black hover:bg-[#0F1115] text-white text-[14px] font-semibold py-3 rounded-xl transition-colors"
+            >
+              Log In →
+            </button>
+            <p className="text-[11px] text-[#9CA3AF] mt-3 text-center">No password required</p>
           </div>
         </div>
+
+        {/* Role chips */}
+        <div className="flex flex-wrap justify-center gap-2 mt-10">
+          {[
+            { role: 'Admin',           color: 'bg-purple-100 text-purple-700' },
+            { role: 'Project Manager', color: 'bg-blue-100 text-blue-700' },
+            { role: 'Site Engineer',   color: 'bg-orange-100 text-orange-700' },
+            { role: 'Surveyor',        color: 'bg-green-100 text-green-700' },
+          ].map(r => (
+            <span key={r.role} className={`text-[11px] font-semibold px-3 py-1 rounded-full ${r.color}`}>
+              {r.role}
+            </span>
+          ))}
+        </div>
+
       </main>
 
-      {/* ── FOOTER ──────────────────────────────────────── */}
-      <footer className="flex-shrink-0 flex items-center justify-between px-12 py-4 bg-white border-t border-[#F3F4F6]">
-        <div className="flex items-center gap-2.5">
-          <LogoIcon size={20} variant="outline" />
-          <div>
-            <span className="text-[13px] font-semibold text-black block leading-tight">PMBoards</span>
-            <span className="text-[11px] text-[#6B7280]">
-              © {new Date().getFullYear()} Mohamed Tharwat
-            </span>
-          </div>
+      {/* ── FOOTER ──────────────────────────────────────────────── */}
+      <footer className="flex items-center justify-between px-8 md:px-12 py-4 border-t border-[#F3F4F6]">
+        <div className="flex items-center gap-2">
+          <LogoIcon size={18} variant="outline" />
+          <span className="text-[12px] text-[#6B7280]">
+            © {new Date().getFullYear()} Mohamed Tharwat
+          </span>
         </div>
-
         <div className="flex items-center gap-4">
-          <a
-            href="https://www.linkedin.com/in/engtharwat2023"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[13px] text-[#374151] no-underline transition-colors hover:text-[#2563FF]"
-          >
-            <LinkedInIcon />
-            <span className="hidden sm:inline">LinkedIn</span>
+          <a href="https://www.linkedin.com/in/engtharwat2023" target="_blank" rel="noopener noreferrer"
+             className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#2563FF] transition-colors">
+            <LinkedInIcon /><span className="hidden sm:inline">LinkedIn</span>
           </a>
-          <a
-            href="https://wa.me/966562085080"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[13px] text-[#374151] no-underline transition-colors hover:text-[#22c55e]"
-          >
-            <WhatsAppIcon />
-            <span className="hidden sm:inline">WhatsApp</span>
+          <a href="https://wa.me/966562085080" target="_blank" rel="noopener noreferrer"
+             className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#22c55e] transition-colors">
+            <WhatsAppIcon /><span className="hidden sm:inline">WhatsApp</span>
           </a>
         </div>
       </footer>
-
     </div>
   )
 }
