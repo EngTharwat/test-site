@@ -96,10 +96,10 @@ export default function LandingPage() {
               and invite your team.
             </p>
             <button
-              onClick={() => router.push('/register')}
+              onClick={() => router.push('/dashboard')}
               className="w-full bg-[#2563FF] hover:bg-[#1d4fd8] text-white text-[14px] font-semibold py-3 rounded-xl transition-colors"
             >
-              Get Started →
+              Explore Demo →
             </button>
             <p className="text-[11px] text-white/30 mt-3 text-center">Admin registration</p>
           </div>

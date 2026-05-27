@@ -285,9 +285,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  useEffect(() => {
-    if (!loading && !user) router.replace('/login')
-  }, [user, loading, router])
+  // ── Auth guard (temporarily disabled for demo) ──────────────
+  // useEffect(() => {
+  //   if (!loading && !user) router.replace('/login')
+  // }, [user, loading, router])
 
   // Redirect members away from pages they can't access
   useEffect(() => {
@@ -306,7 +307,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [profile, profileLoading, pathname, router])
 
-  if (loading || profileLoading || !user) {
+  // Show spinner only while Firebase is initialising (not on missing user — demo mode)
+  if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0F1115]">
         <LogoIcon size={32} />
