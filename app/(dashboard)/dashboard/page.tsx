@@ -213,7 +213,8 @@ export default function PortfolioDashboard() {
       const data = await api.get('/api/projects')
       setProjects(data)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load projects')
+      // In demo mode (not logged in) the API returns 401 — show empty state gracefully
+      setProjects([])
     } finally {
       setLoading(false)
     }

@@ -326,14 +326,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <Sidebar userEmail={user.email} onSignOut={handleSignOut} />
+        <Sidebar userEmail={user?.email ?? null} onSignOut={handleSignOut} />
       </div>
 
       {/* Mobile sidebar overlay */}
       {menuOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="flex-shrink-0">
-            <Sidebar userEmail={user.email} onSignOut={handleSignOut} />
+            <Sidebar userEmail={user?.email ?? null} onSignOut={handleSignOut} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setMenuOpen(false)} />
         </div>

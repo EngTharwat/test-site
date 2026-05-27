@@ -55,7 +55,8 @@ export default function LandingPage() {
         </div>
         <button
           onClick={() => router.push('/login')}
-          className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors"
+          className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors opacity-0 pointer-events-none select-none"
+          aria-hidden="true"
         >
           Sign in →
         </button>
