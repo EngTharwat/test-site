@@ -39,7 +39,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} h-full antialiased`}>
+    <html lang="en" className={`${spaceGrotesk.variable} h-full antialiased`} suppressHydrationWarning>
+      {/* Runs before hydration — applies dark class instantly so there is no flash */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('pmboards-theme');if(t!=='light')document.documentElement.classList.add('dark');}())` }} />
+      </head>
       <body className="min-h-full flex flex-col bg-white text-black">
         <AuthProvider>{children}</AuthProvider>
       </body>

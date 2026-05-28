@@ -1,13 +1,36 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 
+// ── Theme icons ───────────────────────────────────────────────────────────────
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  )
+}
+
 // ── Logo ──────────────────────────────────────────────────────────────────────
+// variant='filled' → white (for dark sidebars)
+// variant='outline' → currentColor (inherits from parent text color, dark-mode-safe)
 function LogoIcon({ size = 34, variant = 'outline' }: { size?: number; variant?: 'outline' | 'filled' }) {
   const w = Math.round(size * 1.5)
-  const c = variant === 'filled' ? 'white' : 'black'
+  const c = variant === 'filled' ? 'white' : 'currentColor'
   return (
     <svg width={w} height={size} viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="2.5"  y="2.5"  width="115" height="75" rx="13" stroke={c} strokeWidth="5" fill="none" />
@@ -38,10 +61,10 @@ function WhatsAppIcon() {
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO_STATS = [
-  { label: 'Total Projects',  value: '4',               sub: '3 active' },
-  { label: 'Contract Value',  value: 'SAR 126.6M',      sub: 'across portfolio' },
-  { label: 'Network Length',  value: '35.3 km',         sub: 'all projects' },
-  { label: 'Avg. Completion', value: '51%',             sub: 'portfolio progress' },
+  { label: 'Total Projects',  value: '4',          sub: '3 active' },
+  { label: 'Contract Value',  value: 'SAR 126.6M', sub: 'across portfolio' },
+  { label: 'Network Length',  value: '35.3 km',    sub: 'all projects' },
+  { label: 'Avg. Completion', value: '51%',         sub: 'portfolio progress' },
 ]
 
 const DEMO_PROJECTS = [
@@ -52,7 +75,6 @@ const DEMO_PROJECTS = [
     statusCls: 'bg-green-100 text-green-700',
     pct: 67,
     value: 'SAR 45.5M',
-    length: '12.4 km',
     barColor: '#f97316',
   },
   {
@@ -62,7 +84,6 @@ const DEMO_PROJECTS = [
     statusCls: 'bg-green-100 text-green-700',
     pct: 34,
     value: 'SAR 28.2M',
-    length: '8.1 km',
     barColor: '#2563FF',
   },
   {
@@ -72,7 +93,6 @@ const DEMO_PROJECTS = [
     statusCls: 'bg-gray-100 text-gray-500',
     pct: 12,
     value: 'SAR 19.8M',
-    length: '5.6 km',
     barColor: '#2563FF',
   },
   {
@@ -82,12 +102,12 @@ const DEMO_PROJECTS = [
     statusCls: 'bg-blue-100 text-blue-700',
     pct: 91,
     value: 'SAR 33.1M',
-    length: '9.2 km',
     barColor: '#22c55e',
   },
 ]
 
 // ── Demo dashboard component ──────────────────────────────────────────────────
+// FIX 2: border-2 border-slate-300 dark:border-slate-600 added to browser chrome div
 function DemoDashboard() {
   return (
     <div className="relative w-full select-none pointer-events-none" style={{ maxWidth: 700 }}>
@@ -97,8 +117,8 @@ function DemoDashboard() {
         Demo Preview
       </div>
 
-      {/* Browser chrome */}
-      <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200/80 bg-white ring-1 ring-black/5">
+      {/* Browser chrome — FIX 2: visible border in both modes */}
+      <div className="rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-300 dark:border-slate-600 bg-white ring-1 ring-black/5">
 
         {/* Chrome bar */}
         <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F3F4F6] border-b border-gray-200">
@@ -118,12 +138,10 @@ function DemoDashboard() {
 
           {/* Sidebar */}
           <div className="w-[150px] flex-shrink-0 bg-[#0F1115] flex flex-col border-r border-white/[0.06]">
-            {/* Logo */}
             <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/[0.06]">
               <LogoIcon size={13} variant="filled" />
               <span className="text-white text-[11px] font-bold tracking-tight">PMBoards</span>
             </div>
-            {/* Nav */}
             <nav className="flex-1 p-2 space-y-px">
               {[
                 { label: 'Portfolio', active: true,  dot: 'bg-white/60' },
@@ -138,7 +156,6 @@ function DemoDashboard() {
                 </div>
               ))}
             </nav>
-            {/* User footer */}
             <div className="px-3 py-2.5 border-t border-white/[0.06]">
               <div className="text-[9px] text-white/30 truncate mb-1">admin@nwc.sa</div>
               <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">Admin</span>
@@ -148,7 +165,6 @@ function DemoDashboard() {
           {/* Main content */}
           <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 space-y-3">
 
-            {/* Page header */}
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[13px] font-bold text-black tracking-tight">Portfolio</div>
@@ -181,7 +197,6 @@ function DemoDashboard() {
                     </span>
                   </div>
                   <div className="text-[9px] text-[#9CA3AF] mb-1.5">{p.client}</div>
-                  {/* Progress bar */}
                   <div className="h-1 bg-gray-100 rounded-full overflow-hidden mb-1.5">
                     <div className="h-full rounded-full" style={{ width: `${p.pct}%`, background: p.barColor }} />
                   </div>
@@ -203,26 +218,24 @@ function DemoDashboard() {
 // ── Founder section ───────────────────────────────────────────────────────────
 function FounderSection() {
   return (
-    <section className="border-t border-[#F3F4F6] bg-[#F9FAFB]">
+    <section className="border-t border-[#F3F4F6] dark:border-gray-800 bg-[#F9FAFB] dark:bg-[#111111]">
       <div className="max-w-3xl mx-auto px-6 md:px-8 py-16">
 
         {/* Section label */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="h-px flex-1 bg-[#E5E7EB]" />
-          <span className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest">About the Founder</span>
-          <div className="h-px flex-1 bg-[#E5E7EB]" />
+          <div className="h-px flex-1 bg-[#E5E7EB] dark:bg-gray-700" />
+          <span className="text-[11px] font-semibold text-[#9CA3AF] dark:text-gray-500 uppercase tracking-widest">About the Founder</span>
+          <div className="h-px flex-1 bg-[#E5E7EB] dark:bg-gray-700" />
         </div>
 
         {/* Card */}
         <div className="flex flex-col sm:flex-row items-start gap-6">
 
           {/* Avatar */}
-          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-[#0F1115] flex-shrink-0 ring-4 ring-white shadow-lg mx-auto sm:mx-0">
-            {/* Fallback initials — visible until photo loads */}
+          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-[#0F1115] flex-shrink-0 ring-4 ring-white dark:ring-gray-800 shadow-lg mx-auto sm:mx-0">
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-white text-[22px] font-bold tracking-[-1px]">MT</span>
             </div>
-            {/* Drop /founder.jpg in the public/ folder to replace initials */}
             <img
               src="/founder.jpg"
               alt="Mohamed Tharwat"
@@ -233,15 +246,16 @@ function FounderSection() {
 
           {/* Text */}
           <div className="flex-1 text-center sm:text-left">
-            <div className="text-[18px] font-bold text-black tracking-[-0.4px]">
+            <div className="text-[18px] font-bold text-black dark:text-white tracking-[-0.4px]">
               Mohamed Tharwat
             </div>
             <div className="text-[13px] text-[#2563FF] font-medium mt-0.5 mb-3">
               Planning Engineer · PMBoards Founder · NWC Saudi Arabia
             </div>
-            <p className="text-[13px] text-[#374151] leading-[1.8] mb-4">
-              Civil Planning Engineer & BCE graduate from Mansoura University (Class of 2023),
-              ranked in the top&nbsp;20 of his class. Currently working with the National Water
+            {/* FIX 4: updated opening sentence */}
+            <p className="text-[13px] text-[#374151] dark:text-gray-300 leading-[1.8] mb-4">
+              Civil Planning Engineer with 3 years of experience in Project Control
+              and Planning. Currently working with the National Water
               Company (NWC) in Saudi Arabia, certified across three major infrastructure
               projects. Passionate about bridging engineering fundamentals with modern digital
               tools — Power BI, Primavera P6, BIM 4D/5D — to turn raw project data into
@@ -251,11 +265,11 @@ function FounderSection() {
             {/* Social */}
             <div className="flex items-center gap-4 justify-center sm:justify-start">
               <a href="https://www.linkedin.com/in/engtharwat2023" target="_blank" rel="noopener noreferrer"
-                 className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#2563FF] transition-colors font-medium">
+                 className="flex items-center gap-1.5 text-[12px] text-[#374151] dark:text-gray-300 hover:text-[#2563FF] dark:hover:text-[#2563FF] transition-colors font-medium">
                 <LinkedInIcon /> LinkedIn
               </a>
               <a href="https://wa.me/966562085080" target="_blank" rel="noopener noreferrer"
-                 className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#22c55e] transition-colors font-medium">
+                 className="flex items-center gap-1.5 text-[12px] text-[#374151] dark:text-gray-300 hover:text-[#22c55e] dark:hover:text-[#22c55e] transition-colors font-medium">
                 <WhatsAppIcon /> WhatsApp
               </a>
             </div>
@@ -271,6 +285,24 @@ export default function LandingPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
 
+  // ── Dark mode (default = dark, persisted in localStorage) ──────────────────
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('pmboards-theme')
+    const initial: 'dark' | 'light' = saved === 'light' ? 'light' : 'dark'
+    setTheme(initial)
+    document.documentElement.classList.toggle('dark', initial === 'dark')
+  }, [])
+
+  function toggleTheme() {
+    const next: 'dark' | 'light' = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    localStorage.setItem('pmboards-theme', next)
+    document.documentElement.classList.toggle('dark', next === 'dark')
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard')
   }, [user, loading, router])
@@ -278,22 +310,36 @@ export default function LandingPage() {
   if (loading) return null
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0a0a0a]">
 
-      {/* ── NAV (unchanged) ─────────────────────────────────────── */}
-      <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6] flex-shrink-0">
-        <div className="flex items-center gap-2.5">
+      {/* ── NAV ─────────────────────────────────────────────────── */}
+      <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6] dark:border-gray-800 flex-shrink-0">
+        {/* Logo + wordmark */}
+        <div className="flex items-center gap-2.5 text-black dark:text-white">
           <LogoIcon size={30} variant="outline" />
-          <span className="text-[18px] font-bold text-black tracking-[-0.5px]">PMBoards</span>
+          <span className="text-[18px] font-bold tracking-[-0.5px]">PMBoards</span>
         </div>
-        {/* Sign-in hidden during demo — restore by removing opacity-0/pointer-events-none */}
-        <button
-          onClick={() => router.push('/login')}
-          className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors opacity-0 pointer-events-none select-none"
-          aria-hidden="true"
-        >
-          Sign in →
-        </button>
+
+        {/* Right side: dark mode toggle + hidden sign-in */}
+        <div className="flex items-center gap-3">
+          {/* FIX 3: dark mode toggle button */}
+          <button
+            onClick={toggleTheme}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#374151] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-800 transition-colors"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+
+          {/* Sign-in hidden during demo */}
+          <button
+            onClick={() => router.push('/login')}
+            className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors opacity-0 pointer-events-none select-none"
+            aria-hidden="true"
+          >
+            Sign in →
+          </button>
+        </div>
       </nav>
 
       {/* ── HERO — split screen ──────────────────────────────────── */}
@@ -303,59 +349,43 @@ export default function LandingPage() {
         <div className="lg:w-[40%] flex flex-col justify-center px-8 md:px-12 lg:px-14 py-14 lg:py-0">
 
           {/* Badge */}
-          <div className="inline-flex items-center gap-1.5 self-start bg-[#F3F4F6] border border-[#E5E7EB] rounded-full px-3.5 py-1.5 text-[12px] font-medium text-[#374151] mb-7">
+          <div className="inline-flex items-center gap-1.5 self-start bg-[#F3F4F6] dark:bg-gray-800 border border-[#E5E7EB] dark:border-gray-700 rounded-full px-3.5 py-1.5 text-[12px] font-medium text-[#374151] dark:text-gray-300 mb-7">
             <span className="w-1.5 h-1.5 rounded-full bg-[#2563FF]" />
             PMO Platform for Infrastructure Projects
           </div>
 
           {/* Headline */}
-          <h1 className="text-[clamp(34px,4.5vw,58px)] font-bold leading-[1.05] tracking-[-2px] text-black mb-5">
+          <h1 className="text-[clamp(34px,4.5vw,58px)] font-bold leading-[1.05] tracking-[-2px] text-black dark:text-white mb-5">
             One platform.<br />
             <span style={{ color: '#2563FF' }}>Your whole team.</span>
           </h1>
 
           {/* Subtext */}
-          <p className="text-[15px] text-[#6B7280] leading-[1.75] max-w-sm mb-9">
+          <p className="text-[15px] text-[#6B7280] dark:text-gray-400 leading-[1.75] max-w-sm mb-9">
             Portfolio admins manage projects, zones, and cash flow. Team members get
             role-matched access — what they need, nothing more.
           </p>
 
-          {/* CTA buttons — stacked */}
-          <div className="flex flex-col gap-3 max-w-xs mb-8">
+          {/* CTA buttons — stacked  (FIX 1: role chips removed below) */}
+          <div className="flex flex-col gap-3 max-w-xs">
             <button
               onClick={() => router.push('/register')}
-              className="w-full bg-black hover:bg-[#0F1115] text-white text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
+              className="w-full bg-black dark:bg-white hover:bg-[#0F1115] dark:hover:bg-gray-100 text-white dark:text-black text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
             >
               Create New Portfolio
             </button>
             <button
               onClick={() => router.push('/login?tab=member')}
-              className="w-full border-2 border-[#E5E7EB] hover:border-black text-black text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
+              className="w-full border-2 border-[#E5E7EB] dark:border-gray-600 hover:border-black dark:hover:border-white text-black dark:text-white text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
             >
               Join Your Portfolio
             </button>
           </div>
-
-          {/* Role chips */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { role: 'Admin',           color: 'bg-purple-100 text-purple-700' },
-              { role: 'Project Manager', color: 'bg-blue-100   text-blue-700'   },
-              { role: 'Site Engineer',   color: 'bg-orange-100 text-orange-700' },
-              { role: 'Surveyor',        color: 'bg-green-100  text-green-700'  },
-            ].map(r => (
-              <span key={r.role} className={`text-[11px] font-semibold px-3 py-1 rounded-full ${r.color}`}>
-                {r.role}
-              </span>
-            ))}
-          </div>
+          {/* FIX 1: role badge chips removed entirely */}
         </div>
 
         {/* ── RIGHT COLUMN (60%) — Demo ────────────────────────── */}
-        <div
-          className="lg:w-[60%] flex items-center justify-center px-6 md:px-10 py-12 lg:py-8 border-t border-[#F3F4F6] lg:border-t-0 lg:border-l"
-          style={{ background: 'linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%)' }}
-        >
+        <div className="lg:w-[60%] flex items-center justify-center px-6 md:px-10 py-12 lg:py-8 border-t border-[#F3F4F6] dark:border-gray-800 lg:border-t-0 lg:border-l bg-gradient-to-br from-[#F8FAFC] to-[#EEF2FF] dark:from-gray-900 dark:to-gray-800">
           <DemoDashboard />
         </div>
 
@@ -364,21 +394,21 @@ export default function LandingPage() {
       {/* ── FOUNDER SECTION ─────────────────────────────────────── */}
       <FounderSection />
 
-      {/* ── FOOTER (unchanged) ──────────────────────────────────── */}
-      <footer className="flex items-center justify-between px-8 md:px-12 py-4 border-t border-[#F3F4F6] flex-shrink-0">
-        <div className="flex items-center gap-2">
+      {/* ── FOOTER ──────────────────────────────────────────────── */}
+      <footer className="flex items-center justify-between px-8 md:px-12 py-4 border-t border-[#F3F4F6] dark:border-gray-800 flex-shrink-0">
+        <div className="flex items-center gap-2 text-black dark:text-white">
           <LogoIcon size={18} variant="outline" />
-          <span className="text-[12px] text-[#6B7280]">
+          <span className="text-[12px] text-[#6B7280] dark:text-gray-400">
             © {new Date().getFullYear()} Mohamed Tharwat
           </span>
         </div>
         <div className="flex items-center gap-4">
           <a href="https://www.linkedin.com/in/engtharwat2023" target="_blank" rel="noopener noreferrer"
-             className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#2563FF] transition-colors">
+             className="flex items-center gap-1.5 text-[12px] text-[#374151] dark:text-gray-300 hover:text-[#2563FF] dark:hover:text-[#2563FF] transition-colors">
             <LinkedInIcon /><span className="hidden sm:inline">LinkedIn</span>
           </a>
           <a href="https://wa.me/966562085080" target="_blank" rel="noopener noreferrer"
-             className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#22c55e] transition-colors">
+             className="flex items-center gap-1.5 text-[12px] text-[#374151] dark:text-gray-300 hover:text-[#22c55e] dark:hover:text-[#22c55e] transition-colors">
             <WhatsAppIcon /><span className="hidden sm:inline">WhatsApp</span>
           </a>
         </div>
