@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 
+// ── Logo ──────────────────────────────────────────────────────────────────────
 function LogoIcon({ size = 34, variant = 'outline' }: { size?: number; variant?: 'outline' | 'filled' }) {
   const w = Math.round(size * 1.5)
   const c = variant === 'filled' ? 'white' : 'black'
@@ -18,6 +19,7 @@ function LogoIcon({ size = 34, variant = 'outline' }: { size?: number; variant?:
   )
 }
 
+// ── Social icons ──────────────────────────────────────────────────────────────
 function LinkedInIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -34,6 +36,237 @@ function WhatsAppIcon() {
   )
 }
 
+// ── Demo data ─────────────────────────────────────────────────────────────────
+const DEMO_STATS = [
+  { label: 'Total Projects',  value: '4',               sub: '3 active' },
+  { label: 'Contract Value',  value: 'SAR 126.6M',      sub: 'across portfolio' },
+  { label: 'Network Length',  value: '35.3 km',         sub: 'all projects' },
+  { label: 'Avg. Completion', value: '51%',             sub: 'portfolio progress' },
+]
+
+const DEMO_PROJECTS = [
+  {
+    name: 'NWC Phase 1 — Riyadh North Sewer',
+    client: 'NWC · Sewer Network',
+    status: 'Active',
+    statusCls: 'bg-green-100 text-green-700',
+    pct: 67,
+    value: 'SAR 45.5M',
+    length: '12.4 km',
+    barColor: '#f97316',
+  },
+  {
+    name: 'Water Main Replacement — Central District',
+    client: 'NWC · Water Network',
+    status: 'Active',
+    statusCls: 'bg-green-100 text-green-700',
+    pct: 34,
+    value: 'SAR 28.2M',
+    length: '8.1 km',
+    barColor: '#2563FF',
+  },
+  {
+    name: 'Storm Drainage — Al Nakheel',
+    client: 'Municipality · Storm',
+    status: 'Planning',
+    statusCls: 'bg-gray-100 text-gray-500',
+    pct: 12,
+    value: 'SAR 19.8M',
+    length: '5.6 km',
+    barColor: '#2563FF',
+  },
+  {
+    name: 'Sewer Rehabilitation — Zone B',
+    client: 'NWC · Sewer Network',
+    status: 'Completed',
+    statusCls: 'bg-blue-100 text-blue-700',
+    pct: 91,
+    value: 'SAR 33.1M',
+    length: '9.2 km',
+    barColor: '#22c55e',
+  },
+]
+
+// ── Demo dashboard component ──────────────────────────────────────────────────
+function DemoDashboard() {
+  return (
+    <div className="relative w-full select-none pointer-events-none" style={{ maxWidth: 700 }}>
+
+      {/* "Demo Preview" badge */}
+      <div className="absolute -top-3 -right-3 z-10 bg-[#2563FF] text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md">
+        Demo Preview
+      </div>
+
+      {/* Browser chrome */}
+      <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200/80 bg-white ring-1 ring-black/5">
+
+        {/* Chrome bar */}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F3F4F6] border-b border-gray-200">
+          <span className="w-3 h-3 rounded-full bg-[#FF5F57]" />
+          <span className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
+          <span className="w-3 h-3 rounded-full bg-[#28C840]" />
+          <div className="flex-1 mx-3 bg-white border border-gray-200 rounded-md px-3 py-1 text-[11px] text-[#9CA3AF] font-mono">
+            pmboards.com/dashboard
+          </div>
+          <div className="flex gap-1">
+            {[1,2].map(i => <div key={i} className="w-3 h-3 rounded-sm bg-gray-200" />)}
+          </div>
+        </div>
+
+        {/* App shell */}
+        <div className="flex" style={{ height: 430 }}>
+
+          {/* Sidebar */}
+          <div className="w-[150px] flex-shrink-0 bg-[#0F1115] flex flex-col border-r border-white/[0.06]">
+            {/* Logo */}
+            <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/[0.06]">
+              <LogoIcon size={13} variant="filled" />
+              <span className="text-white text-[11px] font-bold tracking-tight">PMBoards</span>
+            </div>
+            {/* Nav */}
+            <nav className="flex-1 p-2 space-y-px">
+              {[
+                { label: 'Portfolio', active: true,  dot: 'bg-white/60' },
+                { label: 'Team',      active: false, dot: 'bg-white/20' },
+              ].map(item => (
+                <div key={item.label}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-medium ${
+                    item.active ? 'bg-white/[0.08] text-white' : 'text-white/35'
+                  }`}>
+                  <span className={`w-1.5 h-1.5 rounded-[2px] ${item.dot}`} />
+                  {item.label}
+                </div>
+              ))}
+            </nav>
+            {/* User footer */}
+            <div className="px-3 py-2.5 border-t border-white/[0.06]">
+              <div className="text-[9px] text-white/30 truncate mb-1">admin@nwc.sa</div>
+              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">Admin</span>
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 space-y-3">
+
+            {/* Page header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[13px] font-bold text-black tracking-tight">Portfolio</div>
+                <div className="text-[10px] text-[#6B7280]">All active and planned projects</div>
+              </div>
+              <div className="bg-black text-white text-[9px] font-semibold px-2.5 py-1.5 rounded-lg">
+                + New Project
+              </div>
+            </div>
+
+            {/* KPI cards — 2×2 */}
+            <div className="grid grid-cols-2 gap-2">
+              {DEMO_STATS.map(k => (
+                <div key={k.label} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                  <div className="text-[8px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{k.label}</div>
+                  <div className="text-[13px] font-bold text-black tracking-tight leading-none">{k.value}</div>
+                  <div className="text-[8px] text-[#9CA3AF] mt-1">{k.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Project cards — 2×2 */}
+            <div className="grid grid-cols-2 gap-2">
+              {DEMO_PROJECTS.map((p, i) => (
+                <div key={i} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                  <div className="flex items-start justify-between gap-1 mb-1">
+                    <div className="text-[10px] font-semibold text-black leading-tight line-clamp-2 flex-1">{p.name}</div>
+                    <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${p.statusCls}`}>
+                      {p.status}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-[#9CA3AF] mb-1.5">{p.client}</div>
+                  {/* Progress bar */}
+                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden mb-1.5">
+                    <div className="h-full rounded-full" style={{ width: `${p.pct}%`, background: p.barColor }} />
+                  </div>
+                  <div className="flex justify-between text-[8px]">
+                    <span className="text-[#9CA3AF]">{p.value}</span>
+                    <span className="font-bold text-black">{p.pct}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Founder section ───────────────────────────────────────────────────────────
+function FounderSection() {
+  return (
+    <section className="border-t border-[#F3F4F6] bg-[#F9FAFB]">
+      <div className="max-w-3xl mx-auto px-6 md:px-8 py-16">
+
+        {/* Section label */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="h-px flex-1 bg-[#E5E7EB]" />
+          <span className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-widest">About the Founder</span>
+          <div className="h-px flex-1 bg-[#E5E7EB]" />
+        </div>
+
+        {/* Card */}
+        <div className="flex flex-col sm:flex-row items-start gap-6">
+
+          {/* Avatar */}
+          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-[#0F1115] flex-shrink-0 ring-4 ring-white shadow-lg mx-auto sm:mx-0">
+            {/* Fallback initials — visible until photo loads */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-white text-[22px] font-bold tracking-[-1px]">MT</span>
+            </div>
+            {/* Drop /founder.jpg in the public/ folder to replace initials */}
+            <img
+              src="/founder.jpg"
+              alt="Mohamed Tharwat"
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          </div>
+
+          {/* Text */}
+          <div className="flex-1 text-center sm:text-left">
+            <div className="text-[18px] font-bold text-black tracking-[-0.4px]">
+              Mohamed Tharwat
+            </div>
+            <div className="text-[13px] text-[#2563FF] font-medium mt-0.5 mb-3">
+              Planning Engineer · PMBoards Founder · NWC Saudi Arabia
+            </div>
+            <p className="text-[13px] text-[#374151] leading-[1.8] mb-4">
+              Civil Planning Engineer & BCE graduate from Mansoura University (Class of 2023),
+              ranked in the top&nbsp;20 of his class. Currently working with the National Water
+              Company (NWC) in Saudi Arabia, certified across three major infrastructure
+              projects. Passionate about bridging engineering fundamentals with modern digital
+              tools — Power BI, Primavera P6, BIM 4D/5D — to turn raw project data into
+              decisions that actually move the needle. PMBoards was born from that vision:
+              smart, data-driven project management for everyone.
+            </p>
+            {/* Social */}
+            <div className="flex items-center gap-4 justify-center sm:justify-start">
+              <a href="https://www.linkedin.com/in/engtharwat2023" target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#2563FF] transition-colors font-medium">
+                <LinkedInIcon /> LinkedIn
+              </a>
+              <a href="https://wa.me/966562085080" target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-1.5 text-[12px] text-[#374151] hover:text-[#22c55e] transition-colors font-medium">
+                <WhatsAppIcon /> WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Landing page ──────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -47,12 +280,13 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
 
-      {/* ── NAV ─────────────────────────────────────────────────── */}
-      <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6]">
+      {/* ── NAV (unchanged) ─────────────────────────────────────── */}
+      <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6] flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <LogoIcon size={30} variant="outline" />
           <span className="text-[18px] font-bold text-black tracking-[-0.5px]">PMBoards</span>
         </div>
+        {/* Sign-in hidden during demo — restore by removing opacity-0/pointer-events-none */}
         <button
           onClick={() => router.push('/login')}
           className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors opacity-0 pointer-events-none select-none"
@@ -62,89 +296,76 @@ export default function LandingPage() {
         </button>
       </nav>
 
-      {/* ── HERO ────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
+      {/* ── HERO — split screen ──────────────────────────────────── */}
+      <main className="flex-1 flex flex-col lg:flex-row min-h-0">
 
-        {/* Badge */}
-        <div className="inline-flex items-center gap-1.5 bg-[#F3F4F6] border border-[#E5E7EB] rounded-full px-3.5 py-1.5 text-[12px] font-medium text-[#374151] mb-8">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#2563FF]" />
-          PMO Platform for Sewer Network Projects
-        </div>
+        {/* ── LEFT COLUMN (40%) — CTA ─────────────────────────── */}
+        <div className="lg:w-[40%] flex flex-col justify-center px-8 md:px-12 lg:px-14 py-14 lg:py-0">
 
-        <h1 className="text-[clamp(36px,6vw,68px)] font-bold leading-[1.05] tracking-[-2.5px] text-black max-w-2xl mb-5">
-          One platform.<br />
-          <span style={{ color: '#2563FF' }}>Your whole team.</span>
-        </h1>
-
-        <p className="text-[16px] text-[#6B7280] leading-[1.7] max-w-lg mb-14">
-          Portfolio admins manage projects, zones, and cash flow. Team members get
-          role-matched access — what they need, nothing more.
-        </p>
-
-        {/* ── TWO CTA CARDS ───────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
-
-          {/* Create Portfolio — Admin */}
-          <div className="bg-[#0F1115] rounded-2xl p-8 text-left flex flex-col">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center mb-5">
-              <LogoIcon size={18} variant="filled" />
-            </div>
-            <h2 className="text-[18px] font-bold text-white tracking-[-0.4px] mb-2">
-              Create a Portfolio
-            </h2>
-            <p className="text-[13px] text-white/50 leading-relaxed mb-6 flex-1">
-              Register as an admin, set up your company portfolio, add projects,
-              and invite your team.
-            </p>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="w-full bg-[#2563FF] hover:bg-[#1d4fd8] text-white text-[14px] font-semibold py-3 rounded-xl transition-colors"
-            >
-              Explore Demo →
-            </button>
-            <p className="text-[11px] text-white/30 mt-3 text-center">Admin registration</p>
+          {/* Badge */}
+          <div className="inline-flex items-center gap-1.5 self-start bg-[#F3F4F6] border border-[#E5E7EB] rounded-full px-3.5 py-1.5 text-[12px] font-medium text-[#374151] mb-7">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#2563FF]" />
+            PMO Platform for Infrastructure Projects
           </div>
 
-          {/* Team Login */}
-          <div className="bg-white rounded-2xl p-8 text-left flex flex-col border border-gray-200">
-            <div className="w-10 h-10 rounded-xl bg-[#F3F4F6] flex items-center justify-center mb-5 text-xl">
-              👥
-            </div>
-            <h2 className="text-[18px] font-bold text-black tracking-[-0.4px] mb-2">
-              Join Your Team
-            </h2>
-            <p className="text-[13px] text-[#6B7280] leading-relaxed mb-6 flex-1">
-              Your admin has already set up the portfolio. Enter your portfolio name
-              and username to access your workspace.
-            </p>
+          {/* Headline */}
+          <h1 className="text-[clamp(34px,4.5vw,58px)] font-bold leading-[1.05] tracking-[-2px] text-black mb-5">
+            One platform.<br />
+            <span style={{ color: '#2563FF' }}>Your whole team.</span>
+          </h1>
+
+          {/* Subtext */}
+          <p className="text-[15px] text-[#6B7280] leading-[1.75] max-w-sm mb-9">
+            Portfolio admins manage projects, zones, and cash flow. Team members get
+            role-matched access — what they need, nothing more.
+          </p>
+
+          {/* CTA buttons — stacked */}
+          <div className="flex flex-col gap-3 max-w-xs mb-8">
+            <button
+              onClick={() => router.push('/register')}
+              className="w-full bg-black hover:bg-[#0F1115] text-white text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
+            >
+              Create New Portfolio
+            </button>
             <button
               onClick={() => router.push('/login?tab=member')}
-              className="w-full bg-black hover:bg-[#0F1115] text-white text-[14px] font-semibold py-3 rounded-xl transition-colors"
+              className="w-full border-2 border-[#E5E7EB] hover:border-black text-black text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
             >
-              Log In →
+              Join Your Portfolio
             </button>
-            <p className="text-[11px] text-[#9CA3AF] mt-3 text-center">No password required</p>
+          </div>
+
+          {/* Role chips */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { role: 'Admin',           color: 'bg-purple-100 text-purple-700' },
+              { role: 'Project Manager', color: 'bg-blue-100   text-blue-700'   },
+              { role: 'Site Engineer',   color: 'bg-orange-100 text-orange-700' },
+              { role: 'Surveyor',        color: 'bg-green-100  text-green-700'  },
+            ].map(r => (
+              <span key={r.role} className={`text-[11px] font-semibold px-3 py-1 rounded-full ${r.color}`}>
+                {r.role}
+              </span>
+            ))}
           </div>
         </div>
 
-        {/* Role chips */}
-        <div className="flex flex-wrap justify-center gap-2 mt-10">
-          {[
-            { role: 'Admin',           color: 'bg-purple-100 text-purple-700' },
-            { role: 'Project Manager', color: 'bg-blue-100 text-blue-700' },
-            { role: 'Site Engineer',   color: 'bg-orange-100 text-orange-700' },
-            { role: 'Surveyor',        color: 'bg-green-100 text-green-700' },
-          ].map(r => (
-            <span key={r.role} className={`text-[11px] font-semibold px-3 py-1 rounded-full ${r.color}`}>
-              {r.role}
-            </span>
-          ))}
+        {/* ── RIGHT COLUMN (60%) — Demo ────────────────────────── */}
+        <div
+          className="lg:w-[60%] flex items-center justify-center px-6 md:px-10 py-12 lg:py-8 border-t border-[#F3F4F6] lg:border-t-0 lg:border-l"
+          style={{ background: 'linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%)' }}
+        >
+          <DemoDashboard />
         </div>
 
       </main>
 
-      {/* ── FOOTER ──────────────────────────────────────────────── */}
-      <footer className="flex items-center justify-between px-8 md:px-12 py-4 border-t border-[#F3F4F6]">
+      {/* ── FOUNDER SECTION ─────────────────────────────────────── */}
+      <FounderSection />
+
+      {/* ── FOOTER (unchanged) ──────────────────────────────────── */}
+      <footer className="flex items-center justify-between px-8 md:px-12 py-4 border-t border-[#F3F4F6] flex-shrink-0">
         <div className="flex items-center gap-2">
           <LogoIcon size={18} variant="outline" />
           <span className="text-[12px] text-[#6B7280]">
