@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import {
   Project, ProjectStatus, ProjectType, Currency,
@@ -184,7 +185,10 @@ function EditModal({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PortfolioDashboard() {
-  const router = useRouter()
+  const router    = useRouter()
+  const { profile } = useAuth()
+  const isAdmin   = profile?.isAdmin ?? false
+
   const [projects,    setProjects]    = useState<Project[]>([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState('')
@@ -236,12 +240,14 @@ export default function PortfolioDashboard() {
           <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Portfolio</h1>
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">All active and planned projects</p>
         </div>
-        <button
-          onClick={() => router.push('/projects/new')}
-          className="flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
-        >
-          + New Project
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => router.push('/projects/new')}
+            className="flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
+          >
+            + New Project
+          </button>
+        )}
       </div>
 
       {/* KPI row */}
@@ -280,11 +286,15 @@ export default function PortfolioDashboard() {
         <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
           <div className="text-4xl mb-4">📋</div>
           <h3 className="text-lg font-semibold text-black dark:text-white mb-2">No projects yet</h3>
-          <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-6">Create your first sewer network project to get started.</p>
-          <button onClick={() => router.push('/projects/new')}
-            className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
-            + New Project
-          </button>
+          <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-6">
+            {isAdmin ? 'Create your first sewer network project to get started.' : 'No projects are available to you yet.'}
+          </p>
+          {isAdmin && (
+            <button onClick={() => router.push('/projects/new')}
+              className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
+              + New Project
+            </button>
+          )}
         </div>
       )}
 
@@ -348,18 +358,22 @@ export default function PortfolioDashboard() {
 
                 {/* Action bar */}
                 <div className="flex items-center gap-2 px-6 py-3 border-t border-gray-100 dark:border-gray-800">
-                  <button
-                    onClick={() => setEditProject(p)}
-                    className="text-[12px] font-medium text-[#374151] dark:text-gray-300 hover:text-black dark:hover:text-white bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(p.id, p.name)}
-                    className="text-[12px] font-medium text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-3 py-1.5 rounded-md transition-colors"
-                  >
-                    Delete
-                  </button>
+                  {isAdmin && (
+                    <>
+                      <button
+                        onClick={() => setEditProject(p)}
+                        className="text-[12px] font-medium text-[#374151] dark:text-gray-300 hover:text-black dark:hover:text-white bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id, p.name)}
+                        className="text-[12px] font-medium text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-3 py-1.5 rounded-md transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                   <span className="flex-1" />
                   <button
                     onClick={() => router.push(`/projects/${p.id}`)}

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import { CashFlowRecord, CashFlowWithComputed, MONTH_NAMES, formatCurrency } from '@/lib/types'
 
@@ -20,6 +22,11 @@ function computeCF(records: CashFlowRecord[]): CashFlowWithComputed[] {
 export default function CashFlowPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
+  const { profile } = useAuth()
+  const isAdmin = profile?.isAdmin ?? false
+  const canEdit = isAdmin || (profile?.permissions
+    ? getProjectPagePermissions(profile.permissions, projectId).cash_flow === 'edit'
+    : false)
 
   const [records,  setRecords]  = useState<CashFlowWithComputed[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -115,12 +122,14 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
           <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Cash Flow</h1>
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">Monthly planned vs actual expenditure tracking</p>
         </div>
-        <button
-          onClick={() => { setEditId(null); setShowForm(v => !v) }}
-          className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
-        >
-          + Add Month
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { setEditId(null); setShowForm(v => !v) }}
+            className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
+          >
+            + Add Month
+          </button>
+        )}
       </div>
 
       {/* KPI summary */}
@@ -143,8 +152,8 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
         ))}
       </div>
 
-      {/* Add / Edit form */}
-      {showForm && (
+      {/* Add / Edit form — only when canEdit */}
+      {showForm && canEdit && (
         <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 mb-6">
           <h3 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-4">
             {editId ? 'Edit Record' : 'New Monthly Record'}
@@ -252,8 +261,12 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
                   <span className="text-right text-[#6B7280] dark:text-gray-400">{formatCurrency(r.cumulativePlanned, 'SAR')}</span>
                   <span className="text-right text-[#6B7280] dark:text-gray-400">{formatCurrency(r.cumulativeActual,  'SAR')}</span>
                   <div className="flex gap-2 justify-end">
-                    <button onClick={() => openEdit(r)} className="text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Edit</button>
-                    <button onClick={() => deleteRecord(r.id)} className="text-red-400 hover:text-red-600 transition-colors">Del</button>
+                    {canEdit && (
+                      <>
+                        <button onClick={() => openEdit(r)} className="text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Edit</button>
+                        <button onClick={() => deleteRecord(r.id)} className="text-red-400 hover:text-red-600 transition-colors">Del</button>
+                      </>
+                    )}
                   </div>
                 </div>
               )

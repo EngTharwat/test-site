@@ -2,12 +2,19 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import { Segment, Zone, ACTIVITY_KEYS, formatLength, fmtN } from '@/lib/types'
 
 export default function ProgressPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
+  const { profile } = useAuth()
+  const isAdmin     = profile?.isAdmin ?? false
+  const canSeeSegs  = isAdmin || (profile?.permissions
+    ? getProjectPagePermissions(profile.permissions, projectId).segments !== 'none'
+    : false)
 
   const [segments, setSegments] = useState<Segment[]>([])
   const [zones,    setZones]    = useState<Zone[]>([])
@@ -68,12 +75,14 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
           <div className="text-3xl mb-3">📊</div>
           <p className="text-sm font-semibold text-black dark:text-white mb-2">No segments to aggregate</p>
           <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mb-5">Add pipe segments first, then their activity progress will appear here.</p>
-          <button
-            onClick={() => router.push(`/projects/${projectId}/segments`)}
-            className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
-          >
-            Go to Segments →
-          </button>
+          {canSeeSegs && (
+            <button
+              onClick={() => router.push(`/projects/${projectId}/segments`)}
+              className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
+            >
+              Go to Segments →
+            </button>
+          )}
         </div>
       ) : (
         <>

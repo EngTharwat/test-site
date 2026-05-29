@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
 import { resolveAccess, assertProjectAccess } from '@/lib/access'
-import { can } from '@/lib/roles'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string; segmentId: string }> }
@@ -16,8 +16,17 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    const canProgress   = can(access.role, 'canEditProgress')
-    const canStructural = can(access.role, 'canEditSegments')
+    // Determine what this user can edit:
+    // - canProgress:   editing activity fields (excavation %, piping %, etc.)  → progress page permission
+    // - canStructural: editing physical segment fields (dimensions, location)    → segments page permission
+    let canProgress   = access.isAdmin
+    let canStructural = access.isAdmin
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      canProgress   = pagePerm.progress  === 'edit'
+      canStructural = pagePerm.segments  === 'edit'
+    }
+
     if (!canProgress && !canStructural) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -74,8 +83,11 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canEditSegments')) {
-      return Response.json({ error: 'Forbidden — cannot delete segments' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.segments !== 'edit') {
+        return Response.json({ error: 'Forbidden — cannot delete segments' }, { status: 403 })
+      }
     }
 
     const ref = adminDb.collection('projects').doc(projectId).collection('segments').doc(segmentId)

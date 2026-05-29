@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import { Zone, ZoneStatus, formatLength, fmtN } from '@/lib/types'
 
@@ -33,6 +35,11 @@ const inputCls = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg 
 export default function ZonesPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
+  const { profile } = useAuth()
+  const isAdmin  = profile?.isAdmin ?? false
+  const canEdit  = isAdmin || (profile?.permissions
+    ? getProjectPagePermissions(profile.permissions, projectId).zones === 'edit'
+    : false)
 
   const [zones,    setZones]   = useState<Zone[]>([])
   const [loading,  setLoading] = useState(true)
@@ -131,12 +138,14 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
           <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Zone Management</h1>
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">Divide the network into manageable construction zones</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setEditZone(null); setShowForm(v => !v) }}
-          className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
-        >
-          + Add Zone
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { resetForm(); setEditZone(null); setShowForm(v => !v) }}
+            className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
+          >
+            + Add Zone
+          </button>
+        )}
       </div>
 
       {/* Summary row */}
@@ -155,8 +164,8 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
         </div>
       )}
 
-      {/* Add / Edit form */}
-      {showForm && (
+      {/* Add / Edit form — only shown when canEdit */}
+      {showForm && canEdit && (
         <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 mb-6">
           <h3 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-4">
             {editZone ? 'Edit Zone' : 'New Zone'}
@@ -242,8 +251,12 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
                 <span className="text-right text-[12px] text-[#374151] dark:text-gray-300 font-medium">{fmtN(zone.remainingLength || 0)} m</span>
                 <ProgressBar pct={zone.completionPct || 0} />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => openEdit(zone)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Edit</button>
-                  <button onClick={() => deleteZone(zone.id)} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">Del</button>
+                  {canEdit && (
+                    <>
+                      <button onClick={() => openEdit(zone)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Edit</button>
+                      <button onClick={() => deleteZone(zone.id)} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">Del</button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

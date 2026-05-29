@@ -7,41 +7,59 @@ export async function GET(request: NextRequest) {
     const user = await verifyAuth(request)
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Member or admin with portfolio claims already set
     const portfolioId = user.portfolioId as string | undefined
-    const role        = user.role        as string | undefined
+    const username    = user.username    as string | undefined
 
-    if (portfolioId && role) {
-      const doc = await adminDb.collection('portfolios').doc(portfolioId).get()
-      if (!doc.exists) return Response.json({ error: 'Portfolio not found' }, { status: 404 })
-      const p = doc.data()!
+    // ── Member login (has portfolioId + username claims) ──────────────────────
+    if (portfolioId && username) {
+      const [portfolioDoc, memberDoc] = await Promise.all([
+        adminDb.collection('portfolios').doc(portfolioId).get(),
+        adminDb.collection('portfolios').doc(portfolioId)
+          .collection('members').doc(username).get(),
+      ])
+
+      if (!portfolioDoc.exists) {
+        return Response.json({ error: 'Portfolio not found' }, { status: 404 })
+      }
+
+      const p           = portfolioDoc.data()!
+      const permissions = memberDoc.data()?.permissions ?? null
+
       return Response.json({
-        role,
+        isAdmin:       false,
+        role:          'member',
+        permissions,
         portfolioId,
         portfolioSlug:  p.slug,
         portfolioName:  p.displayName,
-        username:       (user.username as string | undefined) ?? null,
+        username,
         needsPortfolio: false,
       })
     }
 
-    // Admin without claims: look up by owner UID
+    // ── Admin with portfolio claims already set (legacy path) ─────────────────
+    // (This path is hit when an admin's token has portfolioId but no username —
+    //  shouldn't happen in the new flow, but kept for safety.)
+
+    // ── Admin without claims: look up by owner UID ────────────────────────────
     const snap = await adminDb.collection('portfolios')
       .where('adminUserId', '==', user.uid)
       .limit(1)
       .get()
 
     if (snap.empty) {
-      // Email/password user without a portfolio — still an admin, just needs setup
       return Response.json({
-        role: 'admin', portfolioId: null, portfolioSlug: null,
-        portfolioName: null, username: null, needsPortfolio: true,
+        isAdmin: true, role: 'admin', permissions: null,
+        portfolioId: null, portfolioSlug: null, portfolioName: null,
+        username: null, needsPortfolio: true,
       })
     }
 
     const portfolio = { id: snap.docs[0].id, ...snap.docs[0].data() } as any
     return Response.json({
+      isAdmin:        true,
       role:           'admin',
+      permissions:    null,
       portfolioId:    portfolio.id,
       portfolioSlug:  portfolio.slug,
       portfolioName:  portfolio.displayName,
@@ -49,6 +67,9 @@ export async function GET(request: NextRequest) {
       needsPortfolio: false,
     })
   } catch (err: unknown) {
-    return Response.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 })
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Server error' },
+      { status: 500 },
+    )
   }
 }

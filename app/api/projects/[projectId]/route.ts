@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
 import { resolveAccess, assertProjectAccess } from '@/lib/access'
-import { can } from '@/lib/roles'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string }> }
@@ -16,8 +16,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canViewOverview')) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.overview === 'none') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const doc = await adminDb.collection('projects').doc(projectId).get()
@@ -36,8 +39,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canEditProject')) {
-      return Response.json({ error: 'Forbidden — insufficient permissions' }, { status: 403 })
+    if (!access.isAdmin) {
+      return Response.json({ error: 'Forbidden — only admins can edit projects' }, { status: 403 })
     }
 
     const ref  = adminDb.collection('projects').doc(projectId)
@@ -71,7 +74,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canEditProject')) {
+    if (!access.isAdmin) {
       return Response.json({ error: 'Forbidden — only admins can delete projects' }, { status: 403 })
     }
 

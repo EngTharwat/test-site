@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import {
   Project, Zone, CashFlowRecord, CashFlowWithComputed,
@@ -199,6 +201,14 @@ function EditProjectModal({
 export default function ProjectOverviewPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
+  const { profile } = useAuth()
+
+  const isAdmin  = profile?.isAdmin ?? false
+  const pagePerm = (!isAdmin && profile?.permissions)
+    ? getProjectPagePermissions(profile.permissions, projectId)
+    : null
+  const canEdit  = isAdmin || pagePerm?.overview === 'edit'
+  const canSeeZones = isAdmin || (pagePerm && pagePerm.zones !== 'none')
 
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
@@ -294,18 +304,24 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setEditOpen(true)}
-              className="text-sm font-semibold text-[#374151] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">
-              Edit
-            </button>
-            <button onClick={handleDelete} disabled={deleting}
-              className="text-sm font-semibold text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors">
-              {deleting ? 'Deleting…' : 'Delete'}
-            </button>
-            <button onClick={() => router.push(`/projects/${projectId}/zones`)}
-              className="text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:bg-[#0F1115] dark:hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
-              Manage Zones →
-            </button>
+            {canEdit && (
+              <>
+                <button onClick={() => setEditOpen(true)}
+                  className="text-sm font-semibold text-[#374151] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">
+                  Edit
+                </button>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="text-sm font-semibold text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors">
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </>
+            )}
+            {canSeeZones && (
+              <button onClick={() => router.push(`/projects/${projectId}/zones`)}
+                className="text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:bg-[#0F1115] dark:hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
+                Manage Zones →
+              </button>
+            )}
           </div>
         </div>
       </div>

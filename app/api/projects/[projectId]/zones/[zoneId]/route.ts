@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
 import { resolveAccess, assertProjectAccess } from '@/lib/access'
-import { can } from '@/lib/roles'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string; zoneId: string }> }
@@ -16,8 +16,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canViewZones')) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.zones === 'none') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const doc = await adminDb.collection('projects').doc(projectId).collection('zones').doc(zoneId).get()
@@ -38,8 +41,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canEditZones')) {
-      return Response.json({ error: 'Forbidden — cannot edit zones' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.zones !== 'edit') {
+        return Response.json({ error: 'Forbidden — cannot edit zones' }, { status: 403 })
+      }
     }
 
     const body     = await request.json()
@@ -80,8 +86,11 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canEditZones')) {
-      return Response.json({ error: 'Forbidden — cannot delete zones' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.zones !== 'edit') {
+        return Response.json({ error: 'Forbidden — cannot delete zones' }, { status: 403 })
+      }
     }
 
     const ref = adminDb.collection('projects').doc(projectId).collection('zones').doc(zoneId)

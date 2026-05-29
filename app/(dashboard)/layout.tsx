@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { can } from '@/lib/roles'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { ThemeToggle } from '@/lib/theme-toggle'
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
@@ -111,20 +111,6 @@ function NavItem({
   )
 }
 
-// ── Role badge ────────────────────────────────────────────────────────────────
-const ROLE_BADGE_COLORS: Record<string, string> = {
-  admin:           'bg-purple-500/20 text-purple-300',
-  project_manager: 'bg-blue-500/20   text-blue-300',
-  site_engineer:   'bg-orange-500/20 text-orange-300',
-  surveyor:        'bg-green-500/20  text-green-300',
-}
-const ROLE_LABELS: Record<string, string> = {
-  admin:           'Admin',
-  project_manager: 'Proj. Manager',
-  site_engineer:   'Site Engineer',
-  surveyor:        'Surveyor',
-}
-
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({
   userEmail, onSignOut,
@@ -137,9 +123,21 @@ function Sidebar({
   const projectMatch = pathname.match(/\/projects\/([^/]+)/)
   const projectId    = projectMatch?.[1] ?? null
   const inProject    = !!projectId
-  const role         = profile?.role ?? 'admin'
+
+  const isAdmin = profile?.isAdmin ?? false
+  const perms   = profile?.permissions ?? null
+
+  // For members: resolve per-project page permissions
+  const pagePerm = (!isAdmin && perms && projectId)
+    ? getProjectPagePermissions(perms, projectId)
+    : null
 
   const is = (path: string) => pathname === path || pathname.startsWith(path + '/')
+
+  // Determine which top-level nav items a member can see
+  const canSeePortfolio = isAdmin
+    || (perms?.project_scope === 'all')
+    || ((perms?.project_ids ?? []).length > 0)
 
   return (
     <aside className="w-[220px] flex-shrink-0 bg-[#0F1115] flex flex-col border-r border-white/[0.06] h-screen sticky top-0">
@@ -160,7 +158,7 @@ function Sidebar({
       {/* Navigation */}
       <nav className="flex-1 py-3 overflow-y-auto flex flex-col gap-0.5">
 
-        {can(role, 'canViewPortfolio') && (
+        {canSeePortfolio && (
           <NavItem
             href="/dashboard"
             icon={Icon.Portfolio}
@@ -169,7 +167,7 @@ function Sidebar({
           />
         )}
 
-        {can(role, 'canManageTeam') && (
+        {isAdmin && (
           <NavItem
             href="/admin/members"
             icon={Icon.Team}
@@ -182,7 +180,7 @@ function Sidebar({
           <>
             <div className="mx-4 my-2 border-t border-white/[0.06]" />
 
-            {can(role, 'canViewPortfolio') && (
+            {canSeePortfolio && (
               <Link
                 href="/dashboard"
                 className="flex items-center gap-2 mx-2 px-2.5 py-1.5 text-white/30 hover:text-white/60 text-[11px] transition-colors"
@@ -196,7 +194,7 @@ function Sidebar({
               <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Project</span>
             </div>
 
-            {can(role, 'canViewOverview') && (
+            {(isAdmin || (pagePerm && pagePerm.overview !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}`}
                 icon={Icon.Overview}
@@ -205,7 +203,7 @@ function Sidebar({
               />
             )}
 
-            {can(role, 'canViewZones') && (
+            {(isAdmin || (pagePerm && pagePerm.zones !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}/zones`}
                 icon={Icon.Zones}
@@ -214,7 +212,7 @@ function Sidebar({
               />
             )}
 
-            {can(role, 'canViewSegments') && (
+            {(isAdmin || (pagePerm && pagePerm.segments !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}/segments`}
                 icon={Icon.Segments}
@@ -223,7 +221,7 @@ function Sidebar({
               />
             )}
 
-            {can(role, 'canViewProgress') && (
+            {(isAdmin || (pagePerm && pagePerm.progress !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}/progress`}
                 icon={Icon.Progress}
@@ -232,7 +230,7 @@ function Sidebar({
               />
             )}
 
-            {can(role, 'canViewCashFlow') && (
+            {(isAdmin || (pagePerm && pagePerm.cash_flow !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}/cashflow`}
                 icon={Icon.CashFlow}
@@ -241,7 +239,7 @@ function Sidebar({
               />
             )}
 
-            {can(role, 'canViewMap') && (
+            {(isAdmin || (pagePerm && pagePerm.map !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}/map`}
                 icon={Icon.Map}
@@ -256,11 +254,11 @@ function Sidebar({
 
       {/* User footer */}
       <div className="border-t border-white/[0.06] p-4 space-y-2">
-        {profile?.role && (
-          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE_COLORS[profile.role] ?? 'bg-white/10 text-white/50'}`}>
-            {ROLE_LABELS[profile.role] ?? profile.role}
-          </span>
-        )}
+        <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+          isAdmin ? 'bg-purple-500/20 text-purple-300' : 'bg-white/10 text-white/50'
+        }`}>
+          {isAdmin ? 'Admin' : 'Member'}
+        </span>
         <p className="text-[11px] text-white/40 truncate">
           {profile?.username ? `@${profile.username}` : userEmail}
         </p>
@@ -288,8 +286,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!profile || profileLoading) return
-    const role = profile.role
-    if (!role) return
+    if (!profile.role) return
 
     if (
       profile.needsPortfolio &&

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
 import { resolveAccess, assertProjectAccess } from '@/lib/access'
-import { can } from '@/lib/roles'
+import { getProjectPagePermissions } from '@/lib/permissions'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string }> }
@@ -21,8 +21,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canViewSegments')) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.segments === 'none') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const { searchParams } = new URL(request.url)
@@ -51,8 +54,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!can(access.role, 'canEditSegments')) {
-      return Response.json({ error: 'Forbidden — cannot create segments' }, { status: 403 })
+    if (!access.isAdmin) {
+      const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
+      if (pagePerm.segments !== 'edit') {
+        return Response.json({ error: 'Forbidden — cannot create segments' }, { status: 403 })
+      }
     }
 
     const body = await request.json()

@@ -10,16 +10,21 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth } from './firebase'
-import type { Role } from './roles'
+import type { MemberPermissions } from './permissions'
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 export interface UserProfile {
-  role:           Role | null
+  /** True for email/password portfolio owners. */
+  isAdmin:        boolean
+  /** 'admin' | 'member' — kept for display purposes (role badge). */
+  role:           'admin' | 'member' | null
+  /** Granular permissions for non-admin members. Null for admins. */
+  permissions:    MemberPermissions | null
   portfolioId:    string | null
   portfolioSlug:  string | null
   portfolioName:  string | null
   username:       string | null
-  /** Admin is logged in but hasn't created a portfolio yet */
+  /** Admin is logged in but hasn't created a portfolio yet. */
   needsPortfolio: boolean
 }
 
@@ -46,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile,        setProfile]        = useState<UserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
 
-  // Fetch /api/me to get portfolio + role info
+  // Fetch /api/me to get portfolio + permissions info
   const fetchProfile = useCallback(async (u: User) => {
     setProfileLoading(true)
     try {
@@ -58,8 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(await res.json())
       } else {
         setProfile({
-          role: null, portfolioId: null, portfolioSlug: null,
-          portfolioName: null, username: null, needsPortfolio: false,
+          isAdmin: false, role: null, permissions: null,
+          portfolioId: null, portfolioSlug: null, portfolioName: null,
+          username: null, needsPortfolio: false,
         })
       }
     } catch {
@@ -90,11 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string) => {
-    // Profile will be fetched by onAuthStateChanged
     await createUserWithEmailAndPassword(auth, email, password)
   }
 
-  /** Member login: portfolio slug + username → custom token → Firebase session */
   const signInMember = async (portfolioSlug: string, username: string) => {
     const res = await fetch('/api/auth/member-login', {
       method:  'POST',
@@ -110,10 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile(cred.user)
   }
 
-  /** Force-refresh token claims then re-fetch profile (call after portfolio creation). */
   const refreshProfile = async () => {
     if (!user) return
-    await user.getIdToken(true)   // force new token with updated claims
+    await user.getIdToken(true)
     await fetchProfile(user)
   }
 

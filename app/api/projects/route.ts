@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
 import { resolveAccess } from '@/lib/access'
-import { can } from '@/lib/roles'
 import { FieldValue } from 'firebase-admin/firestore'
 
 export async function GET(request: NextRequest) {
@@ -12,20 +11,32 @@ export async function GET(request: NextRequest) {
 
     const access = await resolveAccess(user)
 
-    // Members without portfolio access to the dashboard still need the project list
-    // (so they can navigate into a project). Only the dashboard UI hides it.
     const snap = await adminDb
       .collection('projects')
       .where('userId', '==', access.adminUserId)
       .get()
 
-    const projects = snap.docs
+    let projects = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
 
+    // For members with specific project scope, filter to allowed projects only
+    if (!access.isAdmin && access.memberPermissions?.project_scope === 'specific') {
+      const allowedIds = new Set(access.memberPermissions.project_ids ?? [])
+      projects = projects.filter((p: any) => allowedIds.has(p.id))
+    }
+
+    // Members with no permissions configured see nothing
+    if (!access.isAdmin && !access.memberPermissions) {
+      return Response.json([])
+    }
+
     return Response.json(projects)
   } catch (err: unknown) {
-    return Response.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 })
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Server error' },
+      { status: 500 },
+    )
   }
 }
 
@@ -35,8 +46,11 @@ export async function POST(request: NextRequest) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const access = await resolveAccess(user)
-    if (!can(access.role, 'canEditProject')) {
-      return Response.json({ error: 'Forbidden — only admins can create projects' }, { status: 403 })
+    if (!access.isAdmin) {
+      return Response.json(
+        { error: 'Forbidden — only admins can create projects' },
+        { status: 403 },
+      )
     }
 
     const body = await request.json()
@@ -76,6 +90,9 @@ export async function POST(request: NextRequest) {
     const doc = await ref.get()
     return Response.json({ id: ref.id, ...doc.data() }, { status: 201 })
   } catch (err: unknown) {
-    return Response.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 })
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Server error' },
+      { status: 500 },
+    )
   }
 }

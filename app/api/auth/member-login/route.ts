@@ -3,18 +3,24 @@ import { adminDb, adminAuth } from '@/lib/firebase-admin'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body          = await request.json()
     const portfolioSlug = (body.portfolioSlug as string | undefined)?.toLowerCase().trim()
     const username      = (body.username      as string | undefined)?.toLowerCase().trim()
 
     if (!portfolioSlug || !username) {
-      return Response.json({ error: 'Portfolio name and username are required' }, { status: 400 })
+      return Response.json(
+        { error: 'Portfolio name and username are required' },
+        { status: 400 },
+      )
     }
 
     // Look up portfolio by slug
     const slugDoc = await adminDb.collection('portfolioSlugs').doc(portfolioSlug).get()
     if (!slugDoc.exists) {
-      return Response.json({ error: 'Portfolio not found. Check the portfolio name.' }, { status: 404 })
+      return Response.json(
+        { error: 'Portfolio not found. Check the portfolio name.' },
+        { status: 404 },
+      )
     }
     const portfolioId = slugDoc.data()!.portfolioId as string
 
@@ -24,12 +30,17 @@ export async function POST(request: NextRequest) {
       .collection('members').doc(username)
       .get()
     if (!memberDoc.exists) {
-      return Response.json({ error: 'Username not found in this portfolio.' }, { status: 404 })
+      return Response.json(
+        { error: 'Username not found in this portfolio.' },
+        { status: 404 },
+      )
     }
     const member = memberDoc.data()!
 
     // Stable, deterministic Firebase UID for this member
-    const uid = `m_${portfolioId}_${username}`.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 128)
+    const uid = `m_${portfolioId}_${username}`
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .slice(0, 128)
 
     // Create or update the Firebase Auth user for this member
     try {
@@ -38,18 +49,17 @@ export async function POST(request: NextRequest) {
       await adminAuth.createUser({ uid, displayName: member.displayName as string })
     }
 
-    // Persist claims so they survive token refreshes
+    // Set minimal claims — full permissions are always fetched from Firestore
+    // (avoids stale data if admin changes permissions while member is logged in)
     await adminAuth.setCustomUserClaims(uid, {
       portfolioId,
       portfolioSlug,
-      role:     member.role,
       username,
     })
 
     // Issue a custom token (client will exchange it for a full Firebase session)
     const token = await adminAuth.createCustomToken(uid)
 
-    // Fetch portfolio display name for the response
     const portfolioDoc = await adminDb.collection('portfolios').doc(portfolioId).get()
     const portfolio    = portfolioDoc.data()!
 
@@ -58,7 +68,6 @@ export async function POST(request: NextRequest) {
       member: {
         username:    member.username    as string,
         displayName: member.displayName as string,
-        role:        member.role        as string,
       },
       portfolio: {
         id:          portfolioId,
@@ -67,6 +76,9 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (err: unknown) {
-    return Response.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 })
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Server error' },
+      { status: 500 },
+    )
   }
 }
