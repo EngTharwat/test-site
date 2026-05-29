@@ -11,7 +11,7 @@ import {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[12px] font-semibold text-[#374151] mb-1.5">
+      <label className="block text-[12px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       {children}
@@ -19,13 +19,13 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-colors placeholder:text-gray-400'
+const inputCls  = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
 const selectCls = inputCls + ' cursor-pointer'
 
 export default function NewProjectPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState('')
+  const [error,  setError]  = useState('')
 
   const [form, setForm] = useState({
     name:               '',
@@ -71,19 +71,19 @@ export default function NewProjectPage() {
       <div className="mb-8">
         <button
           onClick={() => router.back()}
-          className="text-[12px] text-[#6B7280] hover:text-black mb-4 flex items-center gap-1.5 transition-colors"
+          className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-4 flex items-center gap-1.5 transition-colors"
         >
           ← Back
         </button>
-        <h1 className="text-2xl font-bold text-black tracking-[-0.5px]">New Project</h1>
-        <p className="text-sm text-[#6B7280] mt-1">Fill in the project details to get started</p>
+        <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">New Project</h1>
+        <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">Fill in the project details to get started</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* ── Section: Project Information ─────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-[13px] font-bold text-black uppercase tracking-wider mb-5">Project Information</h2>
+        {/* Project Information */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+          <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-5">Project Information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
             <div className="md:col-span-2">
@@ -138,22 +138,17 @@ export default function NewProjectPage() {
           </div>
         </div>
 
-        {/* ── Section: Contract & Financial ────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-[13px] font-bold text-black uppercase tracking-wider mb-5">Contract & Financial</h2>
+        {/* Contract & Financial */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+          <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-5">Contract & Financial</h2>
           <div className="grid grid-cols-2 gap-5">
 
-            {/* Row 1: Contract Value | Currency */}
             <Field label="Contract Value" required>
               <input
                 className={inputCls}
-                type="number"
-                min="0"
-                step="any"
-                value={form.contractValue}
-                onChange={set('contractValue')}
-                placeholder="e.g. 84,000,000"
-                required
+                type="number" min="0" step="any"
+                value={form.contractValue} onChange={set('contractValue')}
+                placeholder="e.g. 84,000,000" required
               />
             </Field>
 
@@ -163,15 +158,11 @@ export default function NewProjectPage() {
               </select>
             </Field>
 
-            {/* Row 2: Total Network Length | Unit */}
             <Field label="Total Network Length">
               <input
                 className={inputCls}
-                type="number"
-                min="0"
-                step="1"
-                value={form.totalNetworkLength}
-                onChange={set('totalNetworkLength')}
+                type="number" min="0" step="1"
+                value={form.totalNetworkLength} onChange={set('totalNetworkLength')}
                 placeholder="e.g. 15,000"
               />
             </Field>
@@ -183,7 +174,6 @@ export default function NewProjectPage() {
               </select>
             </Field>
 
-            {/* Row 3: Start Date | End Date */}
             <Field label="Contract Start Date">
               <input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} />
             </Field>
@@ -196,21 +186,19 @@ export default function NewProjectPage() {
         </div>
 
         {/* Error */}
-        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-lg">{error}</p>}
+        {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 px-4 py-3 rounded-lg">{error}</p>}
 
         {/* Actions */}
         <div className="flex items-center gap-3">
           <button
-            type="submit"
-            disabled={saving}
-            className="bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-[#0F1115] disabled:opacity-50 transition-colors"
+            type="submit" disabled={saving}
+            className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Creating…' : 'Create Project'}
           </button>
           <button
-            type="button"
-            onClick={() => router.back()}
-            className="text-sm text-[#6B7280] hover:text-black transition-colors"
+            type="button" onClick={() => router.back()}
+            className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors"
           >
             Cancel
           </button>

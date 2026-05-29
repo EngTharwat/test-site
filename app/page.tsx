@@ -310,7 +310,7 @@ export default function LandingPage() {
   if (loading) return null
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0a0a0a]">
+    <div className="min-h-screen flex flex-col dot-grid">
 
       {/* ── NAV ─────────────────────────────────────────────────── */}
       <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6] dark:border-gray-800 flex-shrink-0">

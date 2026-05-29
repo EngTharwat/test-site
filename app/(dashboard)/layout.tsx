@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { can } from '@/lib/roles'
+import { ThemeToggle } from '@/lib/theme-toggle'
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 function LogoIcon({ size = 22 }: { size?: number }) {
@@ -159,7 +160,6 @@ function Sidebar({
       {/* Navigation */}
       <nav className="flex-1 py-3 overflow-y-auto flex flex-col gap-0.5">
 
-        {/* Portfolio (admin + project manager) */}
         {can(role, 'canViewPortfolio') && (
           <NavItem
             href="/dashboard"
@@ -169,7 +169,6 @@ function Sidebar({
           />
         )}
 
-        {/* Team management (admin only) */}
         {can(role, 'canManageTeam') && (
           <NavItem
             href="/admin/members"
@@ -179,7 +178,6 @@ function Sidebar({
           />
         )}
 
-        {/* Project-specific nav */}
         {inProject && (
           <>
             <div className="mx-4 my-2 border-t border-white/[0.06]" />
@@ -258,7 +256,6 @@ function Sidebar({
 
       {/* User footer */}
       <div className="border-t border-white/[0.06] p-4 space-y-2">
-        {/* Role badge */}
         {profile?.role && (
           <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE_COLORS[profile.role] ?? 'bg-white/10 text-white/50'}`}>
             {ROLE_LABELS[profile.role] ?? profile.role}
@@ -267,12 +264,16 @@ function Sidebar({
         <p className="text-[11px] text-white/40 truncate">
           {profile?.username ? `@${profile.username}` : userEmail}
         </p>
-        <button
-          onClick={onSignOut}
-          className="text-[11px] text-white/30 hover:text-white/70 transition-colors"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onSignOut}
+            className="text-[11px] text-white/30 hover:text-white/70 transition-colors"
+          >
+            Sign out
+          </button>
+          {/* Dark mode toggle in sidebar footer */}
+          <ThemeToggle className="w-7 h-7 text-white/40 hover:text-white hover:bg-white/5 rounded-md" />
+        </div>
       </div>
     </aside>
   )
@@ -285,29 +286,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // ── Auth guard (temporarily disabled for demo) ──────────────
-  // useEffect(() => {
-  //   if (!loading && !user) router.replace('/login')
-  // }, [user, loading, router])
-
-  // Redirect members away from pages they can't access
   useEffect(() => {
     if (!profile || profileLoading) return
     const role = profile.role
     if (!role) return
 
-    // Admin needs to create a portfolio first — redirect to setup
     if (
       profile.needsPortfolio &&
       pathname !== '/register' &&
-      !pathname.startsWith('/admin')  // allow /admin/members to show setup prompt
+      !pathname.startsWith('/admin')
     ) {
       router.replace('/register')
       return
     }
   }, [profile, profileLoading, pathname, router])
 
-  // Show spinner only while Firebase is initialising (not on missing user — demo mode)
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0F1115]">
@@ -322,7 +315,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F3F4F6]">
+    // Outer shell — dark:bg covers the gutter between sidebar and content
+    <div className="flex h-screen overflow-hidden bg-[#F3F4F6] dark:bg-[#0a0a0a]">
 
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
@@ -350,9 +344,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-white text-[14px] font-bold">
             {profile?.portfolioName ?? 'PMBoards'}
           </span>
+          {/* Dark mode toggle in mobile topbar */}
+          <div className="ml-auto">
+            <ThemeToggle className="w-8 h-8 text-white/50 hover:text-white hover:bg-white/5 rounded-md" />
+          </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto dark:bg-[#0a0a0a]">
           {children}
         </main>
       </div>

@@ -84,7 +84,7 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-64 text-gray-400 dark:text-gray-500 text-sm">
         Loading…
       </div>
     )
@@ -92,18 +92,18 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-bold mb-6">{board?.title}</h2>
+      <h2 className="text-xl font-bold mb-6 text-black dark:text-white">{board?.title}</h2>
 
       <div className="flex gap-4 items-start overflow-x-auto pb-4">
         {lists.map((list) => (
-          <div key={list.id} className="bg-gray-100 rounded-xl p-3 w-64 shrink-0">
-            <h3 className="font-semibold text-sm text-gray-700 mb-3 px-1">{list.title}</h3>
+          <div key={list.id} className="bg-gray-100 dark:bg-gray-800 rounded-xl p-3 w-64 shrink-0">
+            <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-200 mb-3 px-1">{list.title}</h3>
 
             <div className="flex flex-col gap-2 mb-3">
               {(list.cards ?? []).map((card) => (
                 <div
                   key={card.id}
-                  className="bg-white rounded-lg px-3 py-2 text-sm shadow-sm border border-gray-200"
+                  className="bg-white dark:bg-gray-900 rounded-lg px-3 py-2 text-sm shadow-sm border border-gray-200 dark:border-gray-700 text-black dark:text-white"
                 >
                   {card.title}
                 </div>
@@ -120,12 +120,12 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
                     setNewCardTitle((prev) => ({ ...prev, [list.id]: e.target.value }))
                   }
                   placeholder="Card title…"
-                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                 />
                 <div className="flex gap-2">
                   <button
                     type="submit"
-                    className="bg-black text-white text-xs px-3 py-1.5 rounded-lg hover:bg-[#0F1115] transition-colors"
+                    className="bg-black dark:bg-white text-white dark:text-black text-xs px-3 py-1.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
                   >
                     Add card
                   </button>
@@ -134,7 +134,7 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
                     onClick={() =>
                       setShowCardForm((prev) => ({ ...prev, [list.id]: false }))
                     }
-                    className="text-xs text-gray-500 hover:text-gray-700"
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
                   >
                     Cancel
                   </button>
@@ -145,7 +145,7 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
                 onClick={() =>
                   setShowCardForm((prev) => ({ ...prev, [list.id]: true }))
                 }
-                className="w-full text-left text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg px-2 py-1.5 transition-colors"
+                className="w-full text-left text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg px-2 py-1.5 transition-colors"
               >
                 + Add a card
               </button>
@@ -158,7 +158,7 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
           {showListForm ? (
             <form
               onSubmit={addList}
-              className="bg-gray-100 rounded-xl p-3 flex flex-col gap-2"
+              className="bg-gray-100 dark:bg-gray-800 rounded-xl p-3 flex flex-col gap-2"
             >
               <input
                 autoFocus
@@ -166,20 +166,20 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
                 value={newListTitle}
                 onChange={(e) => setNewListTitle(e.target.value)}
                 placeholder="List name…"
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
               <div className="flex gap-2">
                 <button
                   type="submit"
                   disabled={addingList}
-                  className="bg-black text-white text-xs px-3 py-1.5 rounded-lg hover:bg-[#0F1115] disabled:opacity-50 transition-colors"
+                  className="bg-black dark:bg-white text-white dark:text-black text-xs px-3 py-1.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors"
                 >
                   {addingList ? 'Adding…' : 'Add list'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowListForm(false)}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
@@ -188,7 +188,7 @@ export default function BoardPage({ params }: { params: Promise<{ boardId: strin
           ) : (
             <button
               onClick={() => setShowListForm(true)}
-              className="w-full bg-white/70 hover:bg-white text-gray-600 text-sm font-medium rounded-xl px-4 py-3 text-left transition-colors border border-gray-200"
+              className="w-full bg-white/70 dark:bg-gray-800/70 hover:bg-white dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 text-sm font-medium rounded-xl px-4 py-3 text-left transition-colors border border-gray-200 dark:border-gray-700"
             >
               + Add a list
             </button>
