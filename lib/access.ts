@@ -35,8 +35,12 @@ export interface Access {
 export async function resolveAccess(token: DecodedIdToken): Promise<Access> {
   const portfolioId = token.portfolioId as string | undefined
   const username    = token.username    as string | undefined
+  const tokenRole   = token.role        as string | undefined
 
-  if (portfolioId && username) {
+  // Admin tokens also carry portfolioId + username:'admin' claims (set at portfolio
+  // creation), so we must check tokenRole !== 'admin' to avoid routing admins into
+  // the member path.
+  if (portfolioId && username && tokenRole !== 'admin') {
     // Member login — fetch portfolio (for adminUserId) and member doc (for permissions) in parallel
     const [portfolioDoc, memberDoc] = await Promise.all([
       adminDb.collection('portfolios').doc(portfolioId).get(),
