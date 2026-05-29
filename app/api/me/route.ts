@@ -7,14 +7,16 @@ export async function GET(request: NextRequest) {
     const user = await verifyAuth(request)
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+    // ── Detect member vs admin by UID structure (claim-independent) ──────────────
+    // Member UIDs are always "m_{portfolioId}_{username}" (set in member-login route).
+    // Admin UIDs are random Firebase Auth UIDs and never start with "m_".
+    // This avoids the bug where admin tokens carry username:'admin' as a claim and
+    // would be misrouted into the member path when checked by claims alone.
+    const isMember    = user.uid.startsWith('m_')
     const portfolioId = user.portfolioId as string | undefined
     const username    = user.username    as string | undefined
-    const tokenRole   = user.role        as string | undefined
 
-    // ── Member login (has portfolioId + username claims, no 'admin' role claim)
-    // NOTE: admins also have portfolioId + username:'admin' in their token claims
-    // (set by /api/portfolios POST), so we must exclude them via the role claim.
-    if (portfolioId && username && tokenRole !== 'admin') {
+    if (isMember) {
       const [portfolioDoc, memberDoc] = await Promise.all([
         adminDb.collection('portfolios').doc(portfolioId).get(),
         adminDb.collection('portfolios').doc(portfolioId)

@@ -28,20 +28,26 @@ export interface Access {
 /**
  * Resolve an access context from a verified Firebase ID token.
  *
- * Members:  token has `portfolioId` + `username` claims  → load admin UID and
- *           permissions from Firestore in parallel.
- * Admins:   token has neither claim (email/password users) → full access.
+ * Detection strategy — UID structure, NOT token claims:
+ *   Member UIDs: always "m_{portfolioId}_{username}" (set in member-login route)
+ *   Admin UIDs:  random Firebase Auth UIDs (never start with "m_")
+ *
+ * This is intentionally claim-independent so it works for any token age or
+ * claim state (avoids the bug where admin tokens with username:'admin' claim
+ * were misrouted into the member path).
  */
 export async function resolveAccess(token: DecodedIdToken): Promise<Access> {
-  const portfolioId = token.portfolioId as string | undefined
-  const username    = token.username    as string | undefined
-  const tokenRole   = token.role        as string | undefined
+  const isMember = token.uid.startsWith('m_')
 
-  // Admin tokens also carry portfolioId + username:'admin' claims (set at portfolio
-  // creation), so we must check tokenRole !== 'admin' to avoid routing admins into
-  // the member path.
-  if (portfolioId && username && tokenRole !== 'admin') {
-    // Member login — fetch portfolio (for adminUserId) and member doc (for permissions) in parallel
+  if (isMember) {
+    const portfolioId = token.portfolioId as string | undefined
+    const username    = token.username    as string | undefined
+
+    if (!portfolioId || !username) {
+      throw Object.assign(new Error('Invalid member token — missing claims'), { status: 401 })
+    }
+
+    // Fetch portfolio (for adminUserId) and member doc (for permissions) in parallel
     const [portfolioDoc, memberDoc] = await Promise.all([
       adminDb.collection('portfolios').doc(portfolioId).get(),
       adminDb.collection('portfolios').doc(portfolioId)
@@ -65,12 +71,12 @@ export async function resolveAccess(token: DecodedIdToken): Promise<Access> {
     }
   }
 
-  // Admin (email/password user — no portfolioId claim in token)
+  // Admin (email/password user — UID is a standard Firebase Auth UID)
   return {
     userId:            token.uid,
     adminUserId:       token.uid,
     isAdmin:           true,
-    portfolioId:       null,
+    portfolioId:       (token.portfolioId as string | undefined) ?? null,
     memberPermissions: null,
     username:          null,
   }
