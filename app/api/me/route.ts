@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
     const username    = user.username    as string | undefined
 
     if (isMember) {
+      if (!portfolioId || !username) {
+        return Response.json({ error: 'Invalid member token — missing claims' }, { status: 401 })
+      }
       const [portfolioDoc, memberDoc] = await Promise.all([
         adminDb.collection('portfolios').doc(portfolioId).get(),
         adminDb.collection('portfolios').doc(portfolioId)
