@@ -9,9 +9,12 @@ export async function GET(request: NextRequest) {
 
     const portfolioId = user.portfolioId as string | undefined
     const username    = user.username    as string | undefined
+    const tokenRole   = user.role        as string | undefined
 
-    // ── Member login (has portfolioId + username claims) ──────────────────────
-    if (portfolioId && username) {
+    // ── Member login (has portfolioId + username claims, no 'admin' role claim)
+    // NOTE: admins also have portfolioId + username:'admin' in their token claims
+    // (set by /api/portfolios POST), so we must exclude them via the role claim.
+    if (portfolioId && username && tokenRole !== 'admin') {
       const [portfolioDoc, memberDoc] = await Promise.all([
         adminDb.collection('portfolios').doc(portfolioId).get(),
         adminDb.collection('portfolios').doc(portfolioId)
