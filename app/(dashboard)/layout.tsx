@@ -54,12 +54,6 @@ const Icon = {
       <line x1="6"  y1="20" x2="6"  y2="14"/>
     </svg>
   ),
-  CashFlow: () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="1" x2="12" y2="23"/>
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-    </svg>
-  ),
   Map: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
@@ -227,15 +221,6 @@ function Sidebar({
                 icon={Icon.Progress}
                 label="Progress"
                 active={is(`/projects/${projectId}/progress`)}
-              />
-            )}
-
-            {(isAdmin || (pagePerm && pagePerm.cash_flow !== 'none')) && (
-              <NavItem
-                href={`/projects/${projectId}/cashflow`}
-                icon={Icon.CashFlow}
-                label="Cash Flow"
-                active={is(`/projects/${projectId}/cashflow`)}
               />
             )}
 

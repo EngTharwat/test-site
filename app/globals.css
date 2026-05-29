@@ -32,16 +32,20 @@ body {
   color: #f1f5f9;
 }
 
-/* Dot-grid background — used on /, /login, /register */
+/* Blueprint grid background — used on /, /login, /register */
 .dot-grid {
   background-color: #f8fafc;
-  background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image:
+    linear-gradient(rgba(203, 213, 225, 0.7) 1px, transparent 1px),
+    linear-gradient(to right, rgba(203, 213, 225, 0.7) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 .dark .dot-grid {
   background-color: #0a0a0a;
-  background-image: radial-gradient(circle, #1e293b 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* Make native browser chrome (selects, date pickers) dark in dark mode */

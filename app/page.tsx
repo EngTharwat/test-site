@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
 
 // ── Theme icons ───────────────────────────────────────────────────────────────
 function MoonIcon() {
@@ -282,7 +281,6 @@ function FounderSection() {
 
 // ── Landing page ──────────────────────────────────────────────────────────────
 export default function LandingPage() {
-  const { user, loading } = useAuth()
   const router = useRouter()
 
   // ── Dark mode (default = dark, persisted in localStorage) ──────────────────
@@ -302,12 +300,6 @@ export default function LandingPage() {
     document.documentElement.classList.toggle('dark', next === 'dark')
   }
   // ───────────────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!loading && user) router.replace('/dashboard')
-  }, [user, loading, router])
-
-  if (loading) return null
 
   return (
     <div className="min-h-screen flex flex-col dot-grid">

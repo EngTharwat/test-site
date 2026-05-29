@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import { ThemeToggle } from '@/lib/theme-toggle'
@@ -93,10 +94,10 @@ export default function RegisterPage() {
 
         {/* Logo + wordmark */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 text-black dark:text-white mb-1">
+          <Link href="/" className="inline-flex items-center justify-center gap-3 text-black dark:text-white mb-1 hover:opacity-80 transition-opacity">
             <LogoIcon size={36} variant="outline" />
             <span className="text-[28px] font-bold tracking-[-0.5px]">PMBoards</span>
-          </div>
+          </Link>
           <p className="text-[13px] text-[#6B7280] dark:text-gray-400 mt-1">
             {step === 1 ? 'Create your admin account' : 'Set up your portfolio'}
           </p>

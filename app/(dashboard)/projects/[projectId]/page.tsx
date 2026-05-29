@@ -6,11 +6,11 @@ import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import {
-  Project, Zone, CashFlowRecord, CashFlowWithComputed,
+  Project, Zone,
   ProjectStatus, ProjectType, Currency,
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
-  MONTH_NAMES, CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
+  CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
 } from '@/lib/types'
 
 // ── Shared small components ───────────────────────────────────────────────────
@@ -212,7 +212,6 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
-  const [cashflow, setCashflow] = useState<CashFlowWithComputed[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -220,21 +219,12 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
   const fetchAll = useCallback(async () => {
     try {
-      const [proj, zoneData, cfData] = await Promise.all([
+      const [proj, zoneData] = await Promise.all([
         api.get(`/api/projects/${projectId}`),
         api.get(`/api/projects/${projectId}/zones`),
-        api.get(`/api/projects/${projectId}/cashflow`),
       ])
       setProject(proj)
       setZones(zoneData)
-      let cumP = 0, cumA = 0
-      const withCumulative: CashFlowWithComputed[] = (cfData as CashFlowRecord[])
-        .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
-        .map(r => {
-          cumP += r.planned; cumA += r.actual
-          return { ...r, variance: r.actual - r.planned, cumulativePlanned: cumP, cumulativeActual: cumA }
-        })
-      setCashflow(withCumulative)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -269,9 +259,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     </div>
   )
 
-  const days      = project.contractEndDate ? daysRemaining(project.contractEndDate) : null
-  const totalCFPlan = cashflow.reduce((s, r) => s + r.planned, 0)
-  const totalCFAct  = cashflow.reduce((s, r) => s + r.actual, 0)
+  const days = project.contractEndDate ? daysRemaining(project.contractEndDate) : null
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -327,12 +315,11 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <KpiCard label="Contract Value"   value={formatCurrency(project.contractValue, project.currency)} sub={project.currency} />
         <KpiCard label="Network Length"   value={formatLength(project.totalNetworkLength)} sub={`Executed: ${formatLength(project.executedLength || 0)}`} />
         <KpiCard label="Overall Progress" value={`${project.completionPct || 0}%`} sub={`${fmtN(zones.length)} zones`}
           accent={project.completionPct >= 80 ? '#22c55e' : project.completionPct >= 40 ? '#f97316' : '#2563FF'} />
-        <KpiCard label="Cash Flow Actual" value={formatCurrency(totalCFAct, project.currency)} sub={`Planned: ${formatCurrency(totalCFPlan, project.currency)}`} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -399,30 +386,6 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             )}
           </div>
 
-          {/* Cash flow mini view */}
-          {cashflow.length > 0 && (
-            <div className="border-t border-gray-100 dark:border-gray-800 px-6 py-4">
-              <div className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-3">Cash Flow (Last 3 Months)</div>
-              <div className="space-y-2">
-                {cashflow.slice(-3).map(r => {
-                  const monthLabel = `${MONTH_NAMES[r.month - 1]} ${r.year}`
-                  const varPct = r.planned > 0 ? ((r.actual - r.planned) / r.planned * 100).toFixed(1) : '0'
-                  const isNeg = r.actual < r.planned
-                  return (
-                    <div key={r.id} className="flex items-center justify-between text-[12px]">
-                      <span className="text-[#6B7280] dark:text-gray-400 w-20">{monthLabel}</span>
-                      <div className="flex-1 mx-3">
-                        <ProgressBar pct={r.planned > 0 ? (r.actual / r.planned) * 100 : 0} color={isNeg ? '#f97316' : '#22c55e'} height={4} />
-                      </div>
-                      <span className={`font-semibold w-16 text-right ${isNeg ? 'text-orange-500' : 'text-green-500'}`}>
-                        {isNeg ? '' : '+'}{varPct}%
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

@@ -22,6 +22,18 @@ function LoginPageInner() {
   const [error,    setError]    = useState('')
   const [busy,     setBusy]     = useState(false)
 
+  // Pre-fill member login fields from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('pmboards-member-login')
+      if (saved) {
+        const { slug: s, username: u } = JSON.parse(saved)
+        if (s) setSlug(s)
+        if (u) setUsername(u)
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard')
   }, [user, loading, router])
@@ -152,7 +164,7 @@ function LoginPageInner() {
                 <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Portfolio Name</label>
                 <input
                   type="text" required className={inputCls}
-                  value={slug} onChange={e => setSlug(e.target.value)}
+                  value={slug} onChange={e => { const v = e.target.value; setSlug(v); localStorage.setItem('pmboards-member-login', JSON.stringify({ slug: v, username })) }}
                   placeholder="e.g. acme-construction"
                 />
               </div>
@@ -160,7 +172,7 @@ function LoginPageInner() {
                 <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Username</label>
                 <input
                   type="text" required className={inputCls}
-                  value={username} onChange={e => setUsername(e.target.value)}
+                  value={username} onChange={e => { const v = e.target.value; setUsername(v); localStorage.setItem('pmboards-member-login', JSON.stringify({ slug, username: v })) }}
                   placeholder="e.g. john"
                 />
               </div>
