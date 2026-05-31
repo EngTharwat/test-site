@@ -53,19 +53,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const existing = await ref.get()
     if (!existing.exists) return Response.json({ error: 'Zone not found' }, { status: 404 })
 
-    const total     = Number(body.totalLength    ?? existing.data()!.totalLength)    || 0
-    const executed  = Number(body.executedLength ?? existing.data()!.executedLength) || 0
-    const remaining = Math.max(total - executed, 0)
-    const pct       = total > 0 ? Math.min(Math.round((executed / total) * 100), 100) : 0
-
     const update: Record<string, unknown> = {
-      updatedAt:       FieldValue.serverTimestamp(),
-      remainingLength: remaining,
-      completionPct:   pct,
-      totalLength:     total,
-      executedLength:  executed,
+      updatedAt: FieldValue.serverTimestamp(),
     }
-    for (const key of ['name','description','status']) {
+    for (const key of ['name', 'type', 'description', 'status']) {
       if (body[key] !== undefined) update[key] = body[key]
     }
 

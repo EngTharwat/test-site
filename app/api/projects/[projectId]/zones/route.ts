@@ -54,25 +54,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json()
-    const { name, description, totalLength, executedLength, status } = body
+    const { name, type } = body
 
     if (!name?.trim()) return Response.json({ error: 'Zone name is required' }, { status: 400 })
 
-    const total     = Number(totalLength)    || 0
-    const executed  = Number(executedLength) || 0
-    const remaining = Math.max(total - executed, 0)
-    const pct       = total > 0 ? Math.min(Math.round((executed / total) * 100), 100) : 0
-
     const data = {
       projectId,
-      name:            name.trim(),
-      description:     description?.trim() ?? '',
-      totalLength:     total,
-      executedLength:  executed,
-      remainingLength: remaining,
-      completionPct:   pct,
-      status:          status ?? 'not_started',
-      segmentCount:    0,
+      name: name.trim(),
+      type: type?.trim() ?? '',
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }

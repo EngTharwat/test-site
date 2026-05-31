@@ -10,6 +10,15 @@ export type PipeMaterial = 'uPVC' | 'HDPE' | 'RCP' | 'GRP' | 'DI' | 'Steel'
 export type ActivityStatus = 'not_started' | 'in_progress' | 'completed' | 'on_hold'
 export type ZoneStatus     = 'not_started' | 'in_progress' | 'completed'
 
+// Zone type options per project type
+export const ZONE_TYPES_BY_PROJECT: Record<ProjectType, string[]> = {
+  sewer_network:  ['Gravity', 'Force Main', 'House Connections'],
+  water_network:  ['Transmission Main', 'Distribution Line', 'House Connections'],
+  storm_drainage: ['Gravity', 'Force Main', 'Detention'],
+  roads:          ['Earthworks', 'Subbase', 'Base Course', 'Asphalt', 'Drainage'],
+  other:          ['General', 'Type A', 'Type B'],
+}
+
 export interface FirestoreTimestamp { seconds: number; nanoseconds?: number }
 
 // ── Activity Progress ─────────────────────────────────────────────────────────
@@ -51,16 +60,18 @@ export interface Project {
 
 // ── Zone ─────────────────────────────────────────────────────────────────────
 export interface Zone {
-  id:              string
-  projectId:       string
-  name:            string
-  description:     string
-  totalLength:     number   // metres (sum of segments or manual entry)
-  executedLength:  number   // metres (from segments or manual)
-  remainingLength: number   // totalLength - executedLength
-  completionPct:   number   // 0–100
-  status:          ZoneStatus
-  segmentCount:    number
+  id:        string
+  projectId: string
+  name:      string
+  type:      string          // zone type (e.g., "Gravity", "Force Main")
+  // Legacy fields kept for backward compatibility with existing documents
+  description?:     string
+  totalLength?:     number
+  executedLength?:  number
+  remainingLength?: number
+  completionPct?:   number
+  status?:          ZoneStatus
+  segmentCount?:    number
   createdAt?: FirestoreTimestamp
   updatedAt?: FirestoreTimestamp
 }
@@ -138,9 +149,9 @@ export const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string; do
 
 export const ACTIVITY_KEYS = [
   { key: 'excavation',  label: 'Excavation',  color: '#2563FF' },
-  { key: 'piping',      label: 'Piping',      color: '#7C3AED' },
+  { key: 'piping',      label: 'Pipeline',    color: '#7C3AED' },
   { key: 'backfilling', label: 'Backfilling', color: '#f97316' },
-  { key: 'basecourse',  label: 'Basecourse',  color: '#22c55e' },
+  { key: 'basecourse',  label: 'Base Course', color: '#22c55e' },
   { key: 'asphalt',     label: 'Asphalt',     color: '#0F1115' },
 ] as const
 
