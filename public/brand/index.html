@@ -306,21 +306,33 @@ async function dlRaster(id, name, bgColor, scale) {
   await new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
+      const isJPG = !!bgColor
+
+      // JPG → square canvas with the logo centred and 18 % padding on each side
+      // PNG → keep the natural aspect ratio (transparent background)
+      let canvasW = w, canvasH = h, drawX = 0, drawY = 0
+      if (isJPG) {
+        const side  = Math.max(w, h)
+        const pad   = Math.round(side * 0.18)
+        canvasW = canvasH = side + pad * 2
+        drawX = Math.round((canvasW - w) / 2)
+        drawY = Math.round((canvasH - h) / 2)
+      }
+
       const canvas = document.createElement('canvas')
-      canvas.width  = w
-      canvas.height = h
+      canvas.width  = canvasW
+      canvas.height = canvasH
       const ctx = canvas.getContext('2d')
 
       if (bgColor) {
         ctx.fillStyle = bgColor
-        ctx.fillRect(0, 0, w, h)
+        ctx.fillRect(0, 0, canvasW, canvasH)
       }
-      ctx.drawImage(img, 0, 0, w, h)
+      ctx.drawImage(img, drawX, drawY, w, h)
       URL.revokeObjectURL(svgURL)
 
-      const isJPG = !!bgColor
-      const mime  = isJPG ? 'image/jpeg' : 'image/png'
-      const ext   = isJPG ? '.jpg' : '.png'
+      const mime = isJPG ? 'image/jpeg' : 'image/png'
+      const ext  = isJPG ? '.jpg' : '.png'
       canvas.toBlob(b => { trigger(URL.createObjectURL(b), name + ext); resolve() }, mime, 0.97)
     }
     img.onerror = () => { URL.revokeObjectURL(svgURL); reject(new Error('SVG render failed')) }
