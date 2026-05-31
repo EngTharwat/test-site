@@ -56,32 +56,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       name, client, contractor, consultant, location, projectType,
-      contractValue, currency, totalNetworkLength, contractStartDate,
-      contractEndDate, description,
-      gravityLength, forcemainLength, houseConnectionsLength,
+      contractValue, currency, contractStartDate, contractEndDate, description,
+      breakdownEntries,
     } = body
 
     if (!name?.trim()) return Response.json({ error: 'Project name is required' }, { status: 400 })
+
+    // Compute totalNetworkLength from breakdown entries
+    const entries: Array<{ type: string; length: number }> = Array.isArray(breakdownEntries)
+      ? breakdownEntries.filter(e => e.type && Number(e.length) > 0)
+          .map(e => ({ type: String(e.type), length: Number(e.length) }))
+      : []
+    const totalNetworkLength = entries.reduce((s, e) => s + e.length, 0)
 
     const data = {
       userId:              access.adminUserId,
       portfolioId:         access.portfolioId ?? null,
       name:                name.trim(),
-      client:              client?.trim()              ?? '',
-      contractor:          contractor?.trim()          ?? '',
-      consultant:          consultant?.trim()          ?? '',
-      location:            location?.trim()            ?? '',
-      projectType:         projectType                 ?? 'sewer_network',
-      contractValue:       Number(contractValue)       || 0,
-      currency:            currency                    ?? 'SAR',
-      totalNetworkLength:  Number(totalNetworkLength)  || 0,
-      contractStartDate:   contractStartDate           ?? '',
-      contractEndDate:     contractEndDate             ?? '',
+      client:              client?.trim()      ?? '',
+      contractor:          contractor?.trim()  ?? '',
+      consultant:          consultant?.trim()  ?? '',
+      location:            location?.trim()    ?? '',
+      projectType:         projectType         ?? 'sewer_network',
+      contractValue:       Number(contractValue) || 0,
+      currency:            currency             ?? 'SAR',
+      totalNetworkLength,
+      contractStartDate:   contractStartDate    ?? '',
+      contractEndDate:     contractEndDate      ?? '',
       status:              'planning',
-      description:         description?.trim()         ?? '',
-      gravityLength:          Number(gravityLength)          || 0,
-      forcemainLength:        Number(forcemainLength)        || 0,
-      houseConnectionsLength: Number(houseConnectionsLength) || 0,
+      description:         description?.trim()  ?? '',
+      breakdownEntries:    entries,
       totalZones:      0,
       totalSegments:   0,
       executedLength:  0,

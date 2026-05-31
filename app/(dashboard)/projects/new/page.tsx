@@ -3,27 +3,23 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import {
-  PROJECT_TYPES, CURRENCIES,
-  PROJECT_TYPE_LABELS,
-} from '@/lib/types'
+import { PROJECT_TYPES, CURRENCIES, PROJECT_TYPE_LABELS, ZONE_TYPES_BY_PROJECT, ProjectType } from '@/lib/types'
 
-function Field({ label, required, hint, children }: {
-  label: string; required?: boolean; hint?: string; children: React.ReactNode
-}) {
+const inputCls  = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
+const selectCls = inputCls + ' cursor-pointer'
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-[12px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">
-        {label} {required && <span className="text-red-500">*</span>}
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
-      {hint && <p className="text-[11px] text-[#9CA3AF] dark:text-gray-500 mt-1">{hint}</p>}
     </div>
   )
 }
 
-const inputCls  = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
-const selectCls = inputCls + ' cursor-pointer'
+interface BreakdownEntry { type: string; length: string }
 
 export default function NewProjectPage() {
   const router = useRouter()
@@ -31,42 +27,57 @@ export default function NewProjectPage() {
   const [error,  setError]  = useState('')
 
   const [form, setForm] = useState({
-    name:               '',
-    client:             '',
-    contractor:         '',
-    consultant:         '',
-    location:           '',
-    projectType:        'sewer_network',
-    contractValue:      '',
-    currency:           'SAR',
-    totalNetworkLength: '',
-    lengthUnit:         'm',
-    contractStartDate:  '',
-    contractEndDate:    '',
-    description:        '',
-    gravityLength:          '',
-    forcemainLength:        '',
-    houseConnectionsLength: '',
+    name: '', client: '', contractor: '', consultant: '', location: '',
+    projectType: 'sewer_network' as ProjectType,
+    contractValue: '', currency: 'SAR',
+    contractStartDate: '', contractEndDate: '',
+    description: '',
   })
+
+  const [breakdown, setBreakdown] = useState<BreakdownEntry[]>([
+    { type: '', length: '' },
+  ])
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const isSewerNetwork = form.projectType === 'sewer_network'
+  const typeOptions = ZONE_TYPES_BY_PROJECT[form.projectType] ?? ZONE_TYPES_BY_PROJECT.other
+
+  // Recompute total from current breakdown
+  const totalNetworkLength = breakdown.reduce((s, r) => s + (Number(r.length) || 0), 0)
+
+  function setBreakdownRow(idx: number, key: keyof BreakdownEntry, value: string) {
+    setBreakdown(prev => prev.map((r, i) => i === idx ? { ...r, [key]: value } : r))
+  }
+
+  function addBreakdownRow() {
+    setBreakdown(prev => [...prev, { type: '', length: '' }])
+  }
+
+  function removeBreakdownRow(idx: number) {
+    setBreakdown(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  // When project type changes, reset breakdown type selections that are no longer valid
+  function handleProjectTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newType = e.target.value as ProjectType
+    setForm(f => ({ ...f, projectType: newType }))
+    setBreakdown(prev => prev.map(r => ({ ...r, type: '' })))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSaving(true)
     try {
-      const lenMultiplier = form.lengthUnit === 'km' ? 1000 : 1
+      const entries = breakdown
+        .filter(r => r.type && Number(r.length) > 0)
+        .map(r => ({ type: r.type, length: Number(r.length) }))
+
       const project = await api.post('/api/projects', {
         ...form,
-        contractValue:          Number(form.contractValue) || 0,
-        totalNetworkLength:     (Number(form.totalNetworkLength) || 0) * lenMultiplier,
-        gravityLength:          isSewerNetwork ? (Number(form.gravityLength)          || 0) * lenMultiplier : 0,
-        forcemainLength:        isSewerNetwork ? (Number(form.forcemainLength)        || 0) * lenMultiplier : 0,
-        houseConnectionsLength: isSewerNetwork ? (Number(form.houseConnectionsLength) || 0) * lenMultiplier : 0,
+        contractValue: Number(form.contractValue) || 0,
+        breakdownEntries: entries,
       })
       router.push(`/projects/${project.id}`)
     } catch (err: unknown) {
@@ -77,7 +88,6 @@ export default function NewProjectPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-3xl mx-auto">
-
       <div className="mb-8">
         <button onClick={() => router.back()}
           className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-4 flex items-center gap-1.5 transition-colors">
@@ -105,15 +115,15 @@ export default function NewProjectPage() {
             <Field label="Contractor">
               <input className={inputCls} value={form.contractor} onChange={set('contractor')} placeholder="e.g. Al-Rashid Construction" />
             </Field>
-            <Field label="Consultant / Supervision">
+            <Field label="Consultant">
               <input className={inputCls} value={form.consultant} onChange={set('consultant')} placeholder="e.g. Dar Al-Handasah" />
             </Field>
             <Field label="Location">
-              <input className={inputCls} value={form.location} onChange={set('location')} placeholder="e.g. Riyadh, Zone 7" />
+              <input className={inputCls} value={form.location} onChange={set('location')} placeholder="e.g. Al-Ahsa, Eastern Province" />
             </Field>
             <div className="md:col-span-2">
               <Field label="Project Type">
-                <select className={selectCls} value={form.projectType} onChange={set('projectType')}>
+                <select className={selectCls} value={form.projectType} onChange={handleProjectTypeChange}>
                   {PROJECT_TYPES.map(t => <option key={t} value={t}>{PROJECT_TYPE_LABELS[t]}</option>)}
                 </select>
               </Field>
@@ -140,16 +150,6 @@ export default function NewProjectPage() {
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Total Network Length">
-              <input className={inputCls} type="number" min="0" step="1"
-                value={form.totalNetworkLength} onChange={set('totalNetworkLength')} placeholder="e.g. 15,000" />
-            </Field>
-            <Field label="Unit">
-              <select className={selectCls} value={form.lengthUnit} onChange={set('lengthUnit')}>
-                <option value="m">Metres (m)</option>
-                <option value="km">Kilometres (km)</option>
-              </select>
-            </Field>
             <Field label="Contract Start Date">
               <input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} />
             </Field>
@@ -159,29 +159,55 @@ export default function NewProjectPage() {
           </div>
         </div>
 
-        {/* Sewer Network Length Breakdown — only for sewer_network projects */}
-        {isSewerNetwork && (
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
-            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-1">Sewer Network Breakdown</h2>
-            <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mb-5">
-              Optional — enter planned lengths per network type (same unit as above)
-            </p>
-            <div className="grid grid-cols-3 gap-5">
-              <Field label="Gravity Length">
-                <input className={inputCls} type="number" min="0" step="1"
-                  value={form.gravityLength} onChange={set('gravityLength')} placeholder="0" />
-              </Field>
-              <Field label="Force Main Length">
-                <input className={inputCls} type="number" min="0" step="1"
-                  value={form.forcemainLength} onChange={set('forcemainLength')} placeholder="0" />
-              </Field>
-              <Field label="House Connections Length">
-                <input className={inputCls} type="number" min="0" step="1"
-                  value={form.houseConnectionsLength} onChange={set('houseConnectionsLength')} placeholder="0" />
-              </Field>
-            </div>
+        {/* Network Length Breakdown */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Network Length Breakdown</h2>
+            {totalNetworkLength > 0 && (
+              <span className="text-[12px] font-semibold text-[#2563FF]">
+                Total: {totalNetworkLength.toLocaleString()} m
+              </span>
+            )}
           </div>
-        )}
+          <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mb-5">
+            Enter lengths per network type. The total will be stored as "Project Overall Length".
+          </p>
+
+          <div className="space-y-3">
+            {breakdown.map((row, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                <select
+                  className={selectCls + ' flex-1'}
+                  value={row.type}
+                  onChange={e => setBreakdownRow(idx, 'type', e.target.value)}
+                >
+                  <option value="">— Select Type —</option>
+                  {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <div className="flex items-center gap-2 w-48">
+                  <input
+                    className={inputCls}
+                    type="number" min="0" step="1"
+                    placeholder="Length (m)"
+                    value={row.length}
+                    onChange={e => setBreakdownRow(idx, 'length', e.target.value)}
+                  />
+                </div>
+                <button type="button" onClick={() => removeBreakdownRow(idx)}
+                  disabled={breakdown.length === 1}
+                  className="text-[#9CA3AF] hover:text-red-500 transition-colors disabled:opacity-30 flex-shrink-0 text-lg leading-none"
+                  title="Remove row">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button type="button" onClick={addBreakdownRow}
+            className="mt-4 text-[12px] font-semibold text-[#2563FF] hover:text-[#1d4fd8] transition-colors flex items-center gap-1">
+            + Add Row
+          </button>
+        </div>
 
         {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 px-4 py-3 rounded-lg">{error}</p>}
 
@@ -195,6 +221,7 @@ export default function NewProjectPage() {
             Cancel
           </button>
         </div>
+
       </form>
     </div>
   )

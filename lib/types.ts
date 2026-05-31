@@ -49,7 +49,10 @@ export interface Project {
   contractEndDate:     string
   status:              ProjectStatus
   description:         string
-  // Sewer-network breakdown lengths (metres)
+  // Dynamic breakdown entries — each row: { type, length } (metres)
+  // totalNetworkLength = sum of all breakdown lengths (computed, stored in Firestore)
+  breakdownEntries?: Array<{ type: string; length: number }>
+  // Legacy fixed fields — kept for backward compatibility only
   gravityLength?:          number
   forcemainLength?:        number
   houseConnectionsLength?: number

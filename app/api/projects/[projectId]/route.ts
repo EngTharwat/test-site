@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       'name','client','contractor','consultant','location','projectType',
       'contractValue','currency','totalNetworkLength','contractStartDate',
       'contractEndDate','status','description',
-      'gravityLength','forcemainLength','houseConnectionsLength',
+      'breakdownEntries',
       'totalZones','totalSegments','executedLength','completionPct',
     ]
     const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() }

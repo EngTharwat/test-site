@@ -11,6 +11,7 @@ import {
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
   CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
+  ZONE_TYPES_BY_PROJECT,
 } from '@/lib/types'
 
 // ── Tiny shared components ────────────────────────────────────────────────────
@@ -96,35 +97,47 @@ const inputCls  = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg
 const selectCls = inputCls + ' cursor-pointer'
 
 // ── Edit Modal ────────────────────────────────────────────────────────────────
+interface BreakdownEntry { type: string; length: string }
+
 type EditForm = {
   name: string; client: string; contractor: string; consultant: string; location: string
   projectType: ProjectType; contractValue: string; currency: Currency
-  totalNetworkLength: string; contractStartDate: string; contractEndDate: string
+  contractStartDate: string; contractEndDate: string
   status: ProjectStatus; description: string
-  gravityLength: string; forcemainLength: string; houseConnectionsLength: string
 }
 
 function EditProjectModal({ project, onClose, onSaved }: {
   project: Project; onClose: () => void; onSaved: (p: Project) => void
 }) {
   const [form, setForm] = useState<EditForm>({
-    name:               project.name,
-    client:             project.client      || '',
-    contractor:         project.contractor  || '',
-    consultant:         project.consultant  || '',
-    location:           project.location    || '',
-    projectType:        project.projectType,
-    contractValue:      String(project.contractValue      || 0),
-    currency:           project.currency,
-    totalNetworkLength: String(project.totalNetworkLength || 0),
-    contractStartDate:  project.contractStartDate || '',
-    contractEndDate:    project.contractEndDate   || '',
-    status:             project.status,
-    description:        project.description || '',
-    gravityLength:          String(project.gravityLength          || 0),
-    forcemainLength:        String(project.forcemainLength        || 0),
-    houseConnectionsLength: String(project.houseConnectionsLength || 0),
+    name:              project.name,
+    client:            project.client      || '',
+    contractor:        project.contractor  || '',
+    consultant:        project.consultant  || '',
+    location:          project.location    || '',
+    projectType:       project.projectType,
+    contractValue:     String(project.contractValue || 0),
+    currency:          project.currency,
+    contractStartDate: project.contractStartDate || '',
+    contractEndDate:   project.contractEndDate   || '',
+    status:            project.status,
+    description:       project.description || '',
   })
+
+  // Populate breakdown from existing project data (new array or legacy fixed fields)
+  const initBreakdown = (): BreakdownEntry[] => {
+    if (project.breakdownEntries?.length) {
+      return project.breakdownEntries.map(e => ({ type: e.type, length: String(e.length) }))
+    }
+    // Migrate from legacy fixed fields
+    const legacy: BreakdownEntry[] = []
+    if (project.gravityLength)          legacy.push({ type: 'Gravity',           length: String(project.gravityLength) })
+    if (project.forcemainLength)        legacy.push({ type: 'Force Main',         length: String(project.forcemainLength) })
+    if (project.houseConnectionsLength) legacy.push({ type: 'House Connections',  length: String(project.houseConnectionsLength) })
+    return legacy.length ? legacy : [{ type: '', length: '' }]
+  }
+
+  const [breakdown, setBreakdown] = useState<BreakdownEntry[]>(initBreakdown)
   const [saving, setSaving] = useState(false)
   const [err,    setErr]    = useState('')
 
@@ -132,16 +145,30 @@ function EditProjectModal({ project, onClose, onSaved }: {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [k]: e.target.value }))
 
+  const typeOptions = ZONE_TYPES_BY_PROJECT[form.projectType] ?? ZONE_TYPES_BY_PROJECT.other
+  const totalNetworkLength = breakdown.reduce((s, r) => s + (Number(r.length) || 0), 0)
+
+  function setBreakdownRow(idx: number, key: keyof BreakdownEntry, value: string) {
+    setBreakdown(prev => prev.map((r, i) => i === idx ? { ...r, [key]: value } : r))
+  }
+
+  function handleProjectTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setForm(f => ({ ...f, projectType: e.target.value as ProjectType }))
+    setBreakdown(prev => prev.map(r => ({ ...r, type: '' })))
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setErr('')
     try {
+      const entries = breakdown
+        .filter(r => r.type && Number(r.length) > 0)
+        .map(r => ({ type: r.type, length: Number(r.length) }))
+
       const updated = await api.patch(`/api/projects/${project.id}`, {
         ...form,
-        contractValue:          Number(form.contractValue)          || 0,
-        totalNetworkLength:     Number(form.totalNetworkLength)      || 0,
-        gravityLength:          Number(form.gravityLength)           || 0,
-        forcemainLength:        Number(form.forcemainLength)         || 0,
-        houseConnectionsLength: Number(form.houseConnectionsLength)  || 0,
+        contractValue:    Number(form.contractValue) || 0,
+        totalNetworkLength,
+        breakdownEntries: entries,
       })
       onSaved(updated)
     } catch (ex: unknown) {
@@ -149,8 +176,6 @@ function EditProjectModal({ project, onClose, onSaved }: {
       setSaving(false)
     }
   }
-
-  const isSewerNetwork = form.projectType === 'sewer_network'
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-10 px-4 overflow-y-auto" onClick={onClose}>
@@ -172,7 +197,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
             <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Location</label><input className={inputCls} value={form.location} onChange={set('location')} /></div>
             <div>
               <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Project Type</label>
-              <select className={selectCls} value={form.projectType} onChange={set('projectType')}>
+              <select className={selectCls} value={form.projectType} onChange={handleProjectTypeChange}>
                 {PROJECT_TYPES.map(t => <option key={t} value={t}>{PROJECT_TYPE_LABELS[t]}</option>)}
               </select>
             </div>
@@ -189,21 +214,52 @@ function EditProjectModal({ project, onClose, onSaved }: {
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Network Length (m)</label><input className={inputCls} type="number" min="0" step="1" value={form.totalNetworkLength} onChange={set('totalNetworkLength')} /></div>
-            <div />
             <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Start Date</label><input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} /></div>
             <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">End Date</label><input className={inputCls} type="date" value={form.contractEndDate} onChange={set('contractEndDate')} /></div>
           </div>
-          {isSewerNetwork && (
-            <div>
-              <p className="text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-2">Sewer Network Breakdown (m)</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div><label className="block text-[10px] text-[#6B7280] mb-1">Gravity</label><input className={inputCls} type="number" min="0" value={form.gravityLength} onChange={set('gravityLength')} /></div>
-                <div><label className="block text-[10px] text-[#6B7280] mb-1">Force Main</label><input className={inputCls} type="number" min="0" value={form.forcemainLength} onChange={set('forcemainLength')} /></div>
-                <div><label className="block text-[10px] text-[#6B7280] mb-1">House Conn.</label><input className={inputCls} type="number" min="0" value={form.houseConnectionsLength} onChange={set('houseConnectionsLength')} /></div>
-              </div>
+
+          {/* Dynamic breakdown */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">Network Length Breakdown</p>
+              {totalNetworkLength > 0 && (
+                <span className="text-[11px] font-semibold text-[#2563FF]">Total: {totalNetworkLength.toLocaleString()} m</span>
+              )}
             </div>
-          )}
+            <div className="space-y-2">
+              {breakdown.map((row, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <select
+                    className={selectCls + ' flex-1'}
+                    value={row.type}
+                    onChange={e => setBreakdownRow(idx, 'type', e.target.value)}
+                  >
+                    <option value="">— Select Type —</option>
+                    {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input
+                    className={inputCls + ' w-36'}
+                    type="number" min="0" step="1"
+                    placeholder="Length (m)"
+                    value={row.length}
+                    onChange={e => setBreakdownRow(idx, 'length', e.target.value)}
+                  />
+                  <button type="button"
+                    onClick={() => setBreakdown(prev => prev.filter((_, i) => i !== idx))}
+                    disabled={breakdown.length === 1}
+                    className="text-[#9CA3AF] hover:text-red-500 disabled:opacity-30 text-lg leading-none flex-shrink-0">
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button"
+              onClick={() => setBreakdown(prev => [...prev, { type: '', length: '' }])}
+              className="mt-2 text-[11px] font-semibold text-[#2563FF] hover:text-[#1d4fd8] transition-colors">
+              + Add Row
+            </button>
+          </div>
+
           <div>
             <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Description</label>
             <textarea className={inputCls + ' resize-none'} rows={3} value={form.description} onChange={set('description')} />
@@ -302,8 +358,6 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const projectPct = totalSegs > 0
     ? Math.round(segments.reduce((s, seg) => s + (seg.overallPct || 0), 0) / totalSegs)
     : project.completionPct || 0
-
-  const isSewerNetwork = project.projectType === 'sewer_network'
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -444,31 +498,48 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         </div>
       </div>
 
-      {/* ── Sewer Network Breakdown (conditional) ───────────────────────── */}
-      {isSewerNetwork && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
-          <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-5">Sewer Network Breakdown</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { label: 'Gravity',           value: project.gravityLength          || 0, color: '#2563FF' },
-              { label: 'Force Main',         value: project.forcemainLength        || 0, color: '#7C3AED' },
-              { label: 'House Connections',  value: project.houseConnectionsLength || 0, color: '#22c55e' },
-            ].map(item => {
-              const pct = project.totalNetworkLength > 0
-                ? Math.round((item.value / project.totalNetworkLength) * 100) : 0
-              return (
-                <div key={item.label}>
-                  <div className="flex justify-between text-[12px] mb-2">
-                    <span className="font-semibold text-black dark:text-white">{item.label}</span>
-                    <span className="text-[#6B7280] dark:text-gray-400">{formatLength(item.value)} · {pct}%</span>
+      {/* ── Network Length Breakdown ─────────────────────────────────────── */}
+      {(project.breakdownEntries?.length || project.gravityLength || project.forcemainLength) ? (() => {
+        // Support both new breakdownEntries and legacy fixed fields
+        const entries = project.breakdownEntries?.length
+          ? project.breakdownEntries
+          : [
+              ...(project.gravityLength          ? [{ type: 'Gravity',          length: project.gravityLength }]          : []),
+              ...(project.forcemainLength        ? [{ type: 'Force Main',        length: project.forcemainLength }]        : []),
+              ...(project.houseConnectionsLength ? [{ type: 'House Connections', length: project.houseConnectionsLength }] : []),
+            ]
+        const total = entries.reduce((s, e) => s + e.length, 0)
+        const PALETTE = ['#2563FF','#7C3AED','#22c55e','#f97316','#ef4444','#eab308','#06b6d4']
+
+        return (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Network Breakdown</h2>
+              <span className="text-[12px] font-semibold text-[#6B7280] dark:text-gray-400">
+                Total: {formatLength(total)}
+              </span>
+            </div>
+            <div className="space-y-4">
+              {entries.map((item, i) => {
+                const pct = total > 0 ? Math.round((item.length / total) * 100) : 0
+                const color = PALETTE[i % PALETTE.length]
+                return (
+                  <div key={i}>
+                    <div className="flex justify-between text-[12px] mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                        <span className="font-semibold text-black dark:text-white">{item.type}</span>
+                      </div>
+                      <span className="text-[#6B7280] dark:text-gray-400">{formatLength(item.length)} · {pct}%</span>
+                    </div>
+                    <Bar pct={pct} color={color} height={8} />
                   </div>
-                  <Bar pct={pct} color={item.color} height={8} />
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })() : null}
 
       {/* ── Surface Type + Segment Stats ────────────────────────────────── */}
       {totalSegs > 0 && (
