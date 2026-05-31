@@ -28,26 +28,43 @@ export interface Access {
 /**
  * Resolve an access context from a verified Firebase ID token.
  *
- * Detection strategy — UID structure, NOT token claims:
- *   Member UIDs: always "m_{portfolioId}_{username}" (set in member-login route)
- *   Admin UIDs:  random Firebase Auth UIDs (never start with "m_")
+ * Detection order — Firestore is the source of truth:
  *
- * This is intentionally claim-independent so it works for any token age or
- * claim state (avoids the bug where admin tokens with username:'admin' claim
- * were misrouted into the member path).
+ *  1. Query portfolios for adminUserId === token.uid.
+ *     If found → confirmed admin (no UID format or claim assumptions needed).
+ *
+ *  2. Fall through to member path using portfolioId + username claims.
+ *     Member UIDs are always "m_{portfolioId}_{username}" so they will
+ *     never match step 1, but we don't rely on that format for correctness.
+ *
+ *  3. No portfolio found and no member claims → new admin who hasn't
+ *     created a portfolio yet.
  */
 export async function resolveAccess(token: DecodedIdToken): Promise<Access> {
-  const isMember = token.uid.startsWith('m_')
 
-  if (isMember) {
-    const portfolioId = token.portfolioId as string | undefined
-    const username    = token.username    as string | undefined
+  // ── 1. Admin check: does any portfolio list this UID as its owner? ──────────
+  const adminSnap = await adminDb
+    .collection('portfolios')
+    .where('adminUserId', '==', token.uid)
+    .limit(1)
+    .get()
 
-    if (!portfolioId || !username) {
-      throw Object.assign(new Error('Invalid member token — missing claims'), { status: 401 })
+  if (!adminSnap.empty) {
+    return {
+      userId:            token.uid,
+      adminUserId:       token.uid,
+      isAdmin:           true,
+      portfolioId:       adminSnap.docs[0].id,
+      memberPermissions: null,
+      username:          null,
     }
+  }
 
-    // Fetch portfolio (for adminUserId) and member doc (for permissions) in parallel
+  // ── 2. Member check: token carries portfolioId + username claims ────────────
+  const portfolioId = token.portfolioId as string | undefined
+  const username    = token.username    as string | undefined
+
+  if (portfolioId && username) {
     const [portfolioDoc, memberDoc] = await Promise.all([
       adminDb.collection('portfolios').doc(portfolioId).get(),
       adminDb.collection('portfolios').doc(portfolioId)
@@ -71,12 +88,12 @@ export async function resolveAccess(token: DecodedIdToken): Promise<Access> {
     }
   }
 
-  // Admin (email/password user — UID is a standard Firebase Auth UID)
+  // ── 3. New admin who hasn't created a portfolio yet ─────────────────────────
   return {
     userId:            token.uid,
     adminUserId:       token.uid,
     isAdmin:           true,
-    portfolioId:       (token.portfolioId as string | undefined) ?? null,
+    portfolioId:       null,
     memberPermissions: null,
     username:          null,
   }
