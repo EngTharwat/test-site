@@ -10,186 +10,156 @@
     body { font-family: 'Space Grotesk', Arial, sans-serif; background: #F3F4F6; color: #0F1115; }
 
     header { background: #0F1115; padding: 28px 48px; display: flex; align-items: center; gap: 16px; }
-    header svg { flex-shrink: 0; }
     header h1 { color: white; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
     header p  { color: rgba(255,255,255,0.4); font-size: 13px; margin-top: 2px; }
 
+    #font-status {
+      background: #FFF7ED; border-bottom: 1px solid #FED7AA;
+      padding: 10px 48px; font-size: 12px; color: #92400E;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #font-status.ready { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
+    #font-status.hidden { display: none; }
+
     main { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
 
-    h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #6B7280; margin-bottom: 20px; margin-top: 48px; }
+    h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+         color: #6B7280; margin-bottom: 20px; margin-top: 48px; }
     h2:first-of-type { margin-top: 0; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 
-    .card {
-      background: white; border-radius: 16px; border: 1px solid #E5E7EB;
-      overflow: hidden;
-    }
-    .card.dark-card { background: #0F1115; border-color: #1F2937; }
-    .card.blue-card { background: #EFF6FF; border-color: #BFDBFE; }
+    .card { background: white; border-radius: 16px; border: 1px solid #E5E7EB; overflow: hidden; }
+    .card.dark-bg { background: #0F1115; border-color: #1F2937; }
+    .card.blue-bg { background: #EFF6FF; border-color: #BFDBFE; }
 
-    .preview {
-      display: flex; align-items: center; justify-content: center;
-      padding: 40px 32px; min-height: 140px;
-    }
+    .preview { display: flex; align-items: center; justify-content: center;
+               padding: 40px 32px; min-height: 140px; }
     .preview svg { max-width: 100%; height: auto; }
 
-    .card-footer {
-      border-top: 1px solid #F3F4F6; padding: 14px 20px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .dark-card .card-footer { border-color: #1F2937; }
-    .blue-card .card-footer { border-color: #BFDBFE; }
+    .card-footer { border-top: 1px solid #F3F4F6; padding: 12px 16px;
+                   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .dark-bg .card-footer { border-color: #1F2937; }
+    .blue-bg .card-footer { border-color: #BFDBFE; }
 
-    .card-label { font-size: 12px; font-weight: 600; color: #374151; }
-    .dark-card .card-label { color: rgba(255,255,255,0.5); }
-    .blue-card .card-label { color: #1D4ED8; }
+    .card-label { font-size: 11px; font-weight: 600; color: #6B7280; flex: 1; min-width: 100%; margin-bottom: 4px; }
+    .dark-bg .card-label { color: rgba(255,255,255,0.4); }
 
-    .btn-group { display: flex; gap: 6px; }
-    .btn {
-      font-family: 'Space Grotesk', Arial, sans-serif;
-      font-size: 11px; font-weight: 600; padding: 6px 12px;
-      border-radius: 8px; border: none; cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .btn:hover { opacity: 0.8; }
+    .btn { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 11px; font-weight: 600;
+           padding: 5px 11px; border-radius: 7px; border: none; cursor: pointer;
+           transition: opacity 0.15s; white-space: nowrap; }
+    .btn:hover { opacity: 0.75; }
     .btn-svg  { background: #F3F4F6; color: #374151; }
     .btn-png  { background: #EFF6FF; color: #2563FF; }
-    .btn-jpg-light { background: #F0FDF4; color: #16A34A; }
-    .btn-jpg-dark  { background: #0F1115; color: white; }
+    .btn-jpg  { background: #F0FDF4; color: #16A34A; }
+    .btn-jpgd { background: #1F2937; color: white; }
 
-    .color-row { display: flex; gap: 12px; margin-bottom: 48px; flex-wrap: wrap; }
-    .swatch {
-      display: flex; align-items: center; gap: 10px;
-      background: white; border: 1px solid #E5E7EB;
-      border-radius: 12px; padding: 12px 16px;
-    }
-    .swatch-dot { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.08); flex-shrink:0; }
-    .swatch-name { font-size: 13px; font-weight: 700; color: #0F1115; }
-    .swatch-hex  { font-size: 11px; color: #6B7280; font-family: monospace; }
-
-    .note { font-size: 12px; color: #9CA3AF; margin-top: 6px; }
+    .color-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .swatch { display: flex; align-items: center; gap: 10px; background: white;
+              border: 1px solid #E5E7EB; border-radius: 12px; padding: 12px 16px; }
+    .dot  { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.06); flex-shrink: 0; }
+    .sw-name { font-size: 13px; font-weight: 700; }
+    .sw-hex  { font-size: 11px; color: #9CA3AF; font-family: monospace; }
   </style>
 </head>
 <body>
 
 <header>
-  <svg width="54" height="36" viewBox="0 0 120 80" fill="none">
-    <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="white" stroke-width="5" fill="none"/>
-    <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="white" stroke-width="5" fill="none"/>
+  <svg width="51" height="34" viewBox="0 0 120 80" fill="none">
+    <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="white" stroke-width="5"/>
+    <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="white" stroke-width="5"/>
     <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="white"/>
     <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="white"/>
     <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="white"/>
   </svg>
   <div>
     <h1>PMBoards — Brand Kit</h1>
-    <p>Click any button to download the logo in your preferred format and size</p>
+    <p>Click any button to download the logo in your preferred format</p>
   </div>
 </header>
 
+<div id="font-status">⏳ Loading Space Grotesk font for PNG/JPG exports…</div>
+
 <main>
 
-  <!-- ── Brand Colors ─────────────────────────────────────────── -->
   <h2>Brand Colors</h2>
   <div class="color-row">
-    <div class="swatch">
-      <div class="swatch-dot" style="background:#0F1115;"></div>
-      <div><div class="swatch-name">Midnight</div><div class="swatch-hex">#0F1115</div></div>
-    </div>
-    <div class="swatch">
-      <div class="swatch-dot" style="background:#2563FF;"></div>
-      <div><div class="swatch-name">PMBlue</div><div class="swatch-hex">#2563FF</div></div>
-    </div>
-    <div class="swatch">
-      <div class="swatch-dot" style="background:#FFFFFF; border:1px solid #E5E7EB;"></div>
-      <div><div class="swatch-name">White</div><div class="swatch-hex">#FFFFFF</div></div>
-    </div>
-    <div class="swatch">
-      <div class="swatch-dot" style="background:#F3F4F6;"></div>
-      <div><div class="swatch-name">Surface</div><div class="swatch-hex">#F3F4F6</div></div>
-    </div>
+    <div class="swatch"><div class="dot" style="background:#0F1115"></div><div><div class="sw-name">Midnight</div><div class="sw-hex">#0F1115</div></div></div>
+    <div class="swatch"><div class="dot" style="background:#2563FF"></div><div><div class="sw-name">PMBlue</div><div class="sw-hex">#2563FF</div></div></div>
+    <div class="swatch"><div class="dot" style="background:#FFFFFF;border-color:#E5E7EB"></div><div><div class="sw-name">White</div><div class="sw-hex">#FFFFFF</div></div></div>
+    <div class="swatch"><div class="dot" style="background:#F3F4F6"></div><div><div class="sw-name">Surface</div><div class="sw-hex">#F3F4F6</div></div></div>
   </div>
 
-  <!-- ── Icon ──────────────────────────────────────────────────── -->
-  <h2>Icon — Square Mark</h2>
+  <!-- ── ICONS ──────────────────────────────────────────────── -->
+  <h2>Icon Only</h2>
   <div class="grid">
 
-    <!-- Icon Black -->
     <div class="card">
-      <div class="preview" style="background:#F9FAFB;">
-        <svg id="icon-black" width="160" height="107" viewBox="0 0 120 80" fill="none">
-          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#0F1115" stroke-width="5" fill="none"/>
-          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#0F1115" stroke-width="5" fill="none"/>
+      <div class="preview" style="background:#F9FAFB">
+        <svg id="icon-black" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="200" height="134">
+          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#0F1115" stroke-width="5"/>
+          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#0F1115" stroke-width="5"/>
           <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="#0F1115"/>
           <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="#0F1115"/>
           <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="#0F1115"/>
         </svg>
       </div>
       <div class="card-footer">
-        <span class="card-label">Icon · Black · Transparent</span>
-        <div class="btn-group">
-          <button class="btn btn-svg" onclick="downloadSVG('icon-black','pmboards-icon-black')">SVG</button>
-          <button class="btn btn-png" onclick="exportPNG('icon-black','pmboards-icon-black',null,8)">PNG</button>
-          <button class="btn btn-jpg-light" onclick="exportPNG('icon-black','pmboards-icon-black-light','#FFFFFF',8)">JPG Light</button>
-          <button class="btn btn-jpg-dark"  onclick="exportPNG('icon-black','pmboards-icon-black-dark','#F3F4F6',8)">JPG Gray</button>
-        </div>
+        <span class="card-label">Icon · Black · Transparent background</span>
+        <button class="btn btn-svg" onclick="dlSVG('icon-black','pmboards-icon-black')">SVG</button>
+        <button class="btn btn-png" onclick="dlRaster('icon-black','pmboards-icon-black',null,8)">PNG</button>
+        <button class="btn btn-jpg" onclick="dlRaster('icon-black','pmboards-icon-black-on-white','#FFFFFF',8)">JPG White</button>
+        <button class="btn btn-jpg" onclick="dlRaster('icon-black','pmboards-icon-black-on-gray','#F3F4F6',8)">JPG Gray</button>
       </div>
     </div>
 
-    <!-- Icon White -->
-    <div class="card dark-card">
-      <div class="preview" style="background:#0F1115;">
-        <svg id="icon-white" width="160" height="107" viewBox="0 0 120 80" fill="none">
-          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#FFFFFF" stroke-width="5" fill="none"/>
-          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#FFFFFF" stroke-width="5" fill="none"/>
+    <div class="card dark-bg">
+      <div class="preview" style="background:#0F1115">
+        <svg id="icon-white" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="200" height="134">
+          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#FFFFFF" stroke-width="5"/>
+          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#FFFFFF" stroke-width="5"/>
           <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="#FFFFFF"/>
           <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="#FFFFFF"/>
           <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="#FFFFFF"/>
         </svg>
       </div>
       <div class="card-footer">
-        <span class="card-label">Icon · White · Transparent</span>
-        <div class="btn-group">
-          <button class="btn btn-svg" onclick="downloadSVG('icon-white','pmboards-icon-white')">SVG</button>
-          <button class="btn btn-png" onclick="exportPNG('icon-white','pmboards-icon-white',null,8)">PNG</button>
-          <button class="btn btn-jpg-dark"  onclick="exportPNG('icon-white','pmboards-icon-white-dark','#0F1115',8)">JPG Dark</button>
-        </div>
+        <span class="card-label">Icon · White · Transparent background</span>
+        <button class="btn btn-svg" onclick="dlSVG('icon-white','pmboards-icon-white')">SVG</button>
+        <button class="btn btn-png" onclick="dlRaster('icon-white','pmboards-icon-white',null,8)">PNG</button>
+        <button class="btn btn-jpgd" onclick="dlRaster('icon-white','pmboards-icon-white-on-dark','#0F1115',8)">JPG Dark</button>
       </div>
     </div>
 
-    <!-- Icon Blue -->
-    <div class="card blue-card">
-      <div class="preview" style="background:#EFF6FF;">
-        <svg id="icon-blue" width="160" height="107" viewBox="0 0 120 80" fill="none">
-          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#2563FF" stroke-width="5" fill="none"/>
-          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#2563FF" stroke-width="5" fill="none"/>
+    <div class="card blue-bg">
+      <div class="preview" style="background:#EFF6FF">
+        <svg id="icon-blue" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="200" height="134">
+          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#2563FF" stroke-width="5"/>
+          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#2563FF" stroke-width="5"/>
           <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="#2563FF"/>
           <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="#2563FF"/>
           <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="#2563FF"/>
         </svg>
       </div>
       <div class="card-footer">
-        <span class="card-label">Icon · Blue · Transparent</span>
-        <div class="btn-group">
-          <button class="btn btn-svg" onclick="downloadSVG('icon-blue','pmboards-icon-blue')">SVG</button>
-          <button class="btn btn-png" onclick="exportPNG('icon-blue','pmboards-icon-blue',null,8)">PNG</button>
-          <button class="btn btn-jpg-light" onclick="exportPNG('icon-blue','pmboards-icon-blue-white','#FFFFFF',8)">JPG White</button>
-        </div>
+        <span class="card-label">Icon · Blue #2563FF · Transparent background</span>
+        <button class="btn btn-svg" onclick="dlSVG('icon-blue','pmboards-icon-blue')">SVG</button>
+        <button class="btn btn-png" onclick="dlRaster('icon-blue','pmboards-icon-blue',null,8)">PNG</button>
+        <button class="btn btn-jpg" onclick="dlRaster('icon-blue','pmboards-icon-blue-on-white','#FFFFFF',8)">JPG White</button>
       </div>
     </div>
 
   </div>
 
-  <!-- ── Wordmark ───────────────────────────────────────────────── -->
+  <!-- ── WORDMARKS ──────────────────────────────────────────── -->
   <h2>Wordmark — Icon + Text</h2>
   <div class="grid">
 
-    <!-- Wordmark Black -->
     <div class="card">
-      <div class="preview" style="background:#F9FAFB;">
-        <svg id="wm-black" width="100%" viewBox="0 0 370 80" fill="none" style="max-height:80px;">
-          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#0F1115" stroke-width="5" fill="none"/>
-          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#0F1115" stroke-width="5" fill="none"/>
+      <div class="preview" style="background:#F9FAFB; padding: 32px">
+        <svg id="wm-black" viewBox="0 0 370 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="70">
+          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#0F1115" stroke-width="5"/>
+          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#0F1115" stroke-width="5"/>
           <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="#0F1115"/>
           <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="#0F1115"/>
           <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="#0F1115"/>
@@ -197,22 +167,19 @@
         </svg>
       </div>
       <div class="card-footer">
-        <span class="card-label">Wordmark · Black · Transparent</span>
-        <div class="btn-group">
-          <button class="btn btn-svg" onclick="downloadSVG('wm-black','pmboards-wordmark-black')">SVG</button>
-          <button class="btn btn-png" onclick="exportPNG('wm-black','pmboards-wordmark-black',null,4)">PNG</button>
-          <button class="btn btn-jpg-light" onclick="exportPNG('wm-black','pmboards-wordmark-black-white','#FFFFFF',4)">JPG White</button>
-          <button class="btn btn-jpg-dark"  onclick="exportPNG('wm-black','pmboards-wordmark-black-gray','#F3F4F6',4)">JPG Gray</button>
-        </div>
+        <span class="card-label">Wordmark · Black · Transparent background</span>
+        <button class="btn btn-svg" onclick="dlSVG('wm-black','pmboards-wordmark-black')">SVG</button>
+        <button class="btn btn-png" onclick="dlRaster('wm-black','pmboards-wordmark-black',null,4)">PNG</button>
+        <button class="btn btn-jpg" onclick="dlRaster('wm-black','pmboards-wordmark-black-on-white','#FFFFFF',4)">JPG White</button>
+        <button class="btn btn-jpg" onclick="dlRaster('wm-black','pmboards-wordmark-black-on-gray','#F3F4F6',4)">JPG Gray</button>
       </div>
     </div>
 
-    <!-- Wordmark White -->
-    <div class="card dark-card">
-      <div class="preview" style="background:#0F1115;">
-        <svg id="wm-white" width="100%" viewBox="0 0 370 80" fill="none" style="max-height:80px;">
-          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#FFFFFF" stroke-width="5" fill="none"/>
-          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#FFFFFF" stroke-width="5" fill="none"/>
+    <div class="card dark-bg">
+      <div class="preview" style="background:#0F1115; padding: 32px">
+        <svg id="wm-white" viewBox="0 0 370 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="70">
+          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#FFFFFF" stroke-width="5"/>
+          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#FFFFFF" stroke-width="5"/>
           <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="#FFFFFF"/>
           <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="#FFFFFF"/>
           <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="#FFFFFF"/>
@@ -220,21 +187,18 @@
         </svg>
       </div>
       <div class="card-footer">
-        <span class="card-label">Wordmark · White · Transparent</span>
-        <div class="btn-group">
-          <button class="btn btn-svg" onclick="downloadSVG('wm-white','pmboards-wordmark-white')">SVG</button>
-          <button class="btn btn-png" onclick="exportPNG('wm-white','pmboards-wordmark-white',null,4)">PNG</button>
-          <button class="btn btn-jpg-dark"  onclick="exportPNG('wm-white','pmboards-wordmark-white-dark','#0F1115',4)">JPG Dark</button>
-        </div>
+        <span class="card-label">Wordmark · White · Transparent background</span>
+        <button class="btn btn-svg" onclick="dlSVG('wm-white','pmboards-wordmark-white')">SVG</button>
+        <button class="btn btn-png" onclick="dlRaster('wm-white','pmboards-wordmark-white',null,4)">PNG</button>
+        <button class="btn btn-jpgd" onclick="dlRaster('wm-white','pmboards-wordmark-white-on-dark','#0F1115',4)">JPG Dark</button>
       </div>
     </div>
 
-    <!-- Wordmark Blue -->
-    <div class="card blue-card">
-      <div class="preview" style="background:#EFF6FF;">
-        <svg id="wm-blue" width="100%" viewBox="0 0 370 80" fill="none" style="max-height:80px;">
-          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#2563FF" stroke-width="5" fill="none"/>
-          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#2563FF" stroke-width="5" fill="none"/>
+    <div class="card blue-bg">
+      <div class="preview" style="background:#EFF6FF; padding: 32px">
+        <svg id="wm-blue" viewBox="0 0 370 80" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="70">
+          <rect x="2.5" y="2.5" width="115" height="75" rx="13" stroke="#2563FF" stroke-width="5"/>
+          <rect x="22.5" y="22.5" width="35" height="35" rx="5" stroke="#2563FF" stroke-width="5"/>
           <rect x="67.5" y="40" width="5" height="20" rx="2.5" fill="#2563FF"/>
           <rect x="82.5" y="30" width="5" height="30" rx="2.5" fill="#2563FF"/>
           <rect x="97.5" y="20" width="5" height="40" rx="2.5" fill="#2563FF"/>
@@ -242,52 +206,105 @@
         </svg>
       </div>
       <div class="card-footer">
-        <span class="card-label">Wordmark · Blue + Black</span>
-        <div class="btn-group">
-          <button class="btn btn-svg" onclick="downloadSVG('wm-blue','pmboards-wordmark-blue')">SVG</button>
-          <button class="btn btn-png" onclick="exportPNG('wm-blue','pmboards-wordmark-blue',null,4)">PNG</button>
-          <button class="btn btn-jpg-light" onclick="exportPNG('wm-blue','pmboards-wordmark-blue-white','#FFFFFF',4)">JPG White</button>
-        </div>
+        <span class="card-label">Wordmark · Blue icon + Black text</span>
+        <button class="btn btn-svg" onclick="dlSVG('wm-blue','pmboards-wordmark-blue')">SVG</button>
+        <button class="btn btn-png" onclick="dlRaster('wm-blue','pmboards-wordmark-blue',null,4)">PNG</button>
+        <button class="btn btn-jpg" onclick="dlRaster('wm-blue','pmboards-wordmark-blue-on-white','#FFFFFF',4)">JPG White</button>
       </div>
     </div>
 
   </div>
-
-  <p class="note" style="margin-top:32px; text-align:center;">
-    PNG exports are high-resolution (8× scale for icons, 4× for wordmarks). Open this file at
-    <strong>pmboards.com/brand</strong> after deployment, or directly from the <code>public/brand/</code> folder.
-  </p>
-
 </main>
 
 <script>
-  // ── SVG download ────────────────────────────────────────────────
-  function downloadSVG(svgId, fileName) {
-    const el  = document.getElementById(svgId)
-    const xml = new XMLSerializer().serializeToString(el)
-    const blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' })
-    trigger(URL.createObjectURL(blob), fileName + '.svg')
+// ── Font preloading ───────────────────────────────────────────────────────────
+// Space Grotesk must be embedded in the SVG blob for canvas to render it correctly.
+// Fonts from the document stylesheet are NOT accessible inside blob-URL images.
+let fontDataURI = null
+
+async function preloadFont() {
+  const status = document.getElementById('font-status')
+  try {
+    // 1. Get the CSS from Google Fonts to find the actual woff2 URL
+    const cssResp = await fetch(
+      'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap',
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36' } }
+    )
+    const css = await cssResp.text()
+
+    // 2. Extract the woff2 URL (take first match — Latin subset)
+    const match = css.match(/src:\s*url\(([^)]+\.woff2[^)]*)\)/)
+    if (!match) throw new Error('woff2 URL not found in CSS')
+    const fontUrl = match[1].replace(/['"]/g, '')
+
+    // 3. Fetch the font binary
+    const fontResp = await fetch(fontUrl)
+    const fontBlob = await fontResp.blob()
+
+    // 4. Convert to base64 data URI
+    fontDataURI = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.onerror  = reject
+      reader.readAsDataURL(fontBlob)
+    })
+
+    status.textContent = '✓ Font loaded — PNG and JPG exports are ready'
+    status.className = 'ready'
+    setTimeout(() => status.className = 'hidden', 3000)
+  } catch (err) {
+    console.warn('Font preload failed:', err)
+    status.textContent = '⚠ Font could not load — exports will use Arial (shapes still correct)'
+    status.className = 'ready'
   }
+}
 
-  // ── PNG / JPG export via Canvas ─────────────────────────────────
-  function exportPNG(svgId, fileName, bgColor, scale) {
-    const el      = document.getElementById(svgId)
-    const vb      = el.viewBox.baseVal
-    const w       = vb.width  * scale
-    const h       = vb.height * scale
-    const isJPG   = !!bgColor
-    const ext     = isJPG ? '.jpg' : '.png'
+// ── SVG download ──────────────────────────────────────────────────────────────
+function dlSVG(id, name) {
+  const el  = document.getElementById(id)
+  // Add proper xmlns before serialising
+  const clone = el.cloneNode(true)
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
 
-    // Inline font so Canvas renderer picks it up
-    const style = `<style>text{font-family:'Space Grotesk',Arial,sans-serif;font-weight:700;}</style>`
-    const svgStr = new XMLSerializer().serializeToString(el)
-      .replace('<svg ', `<svg width="${w}" height="${h}" `)
-    const withFont = svgStr.replace('</svg>', style + '</svg>')
+  const xml  = new XMLSerializer().serializeToString(clone)
+  const blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' })
+  trigger(URL.createObjectURL(blob), name + '.svg')
+}
 
-    const blob = new Blob([withFont], { type: 'image/svg+xml;charset=utf-8' })
-    const url  = URL.createObjectURL(blob)
-    const img  = new Image()
+// ── PNG / JPG via Canvas ──────────────────────────────────────────────────────
+async function dlRaster(id, name, bgColor, scale) {
+  const original = document.getElementById(id)
+  const vb = original.viewBox.baseVal
+  const w  = Math.round(vb.width  * scale)
+  const h  = Math.round(vb.height * scale)
 
+  // Clone the SVG element with proper namespaces
+  const clone = original.cloneNode(true)
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  clone.setAttribute('width',  w)
+  clone.setAttribute('height', h)
+  clone.removeAttribute('style')   // remove max-height / display constraints
+
+  // Embed Space Grotesk (or fall back to Arial)
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  if (fontDataURI) {
+    styleEl.textContent =
+      `@font-face{font-family:'Space Grotesk';font-weight:700;` +
+      `src:url('${fontDataURI}') format('woff2');}` +
+      `text{font-family:'Space Grotesk',Arial,sans-serif;font-weight:700;}`
+  } else {
+    styleEl.textContent = `text{font-family:Arial,sans-serif;font-weight:700;}`
+  }
+  clone.insertBefore(styleEl, clone.firstChild)
+
+  const svgBlob = new Blob(
+    [new XMLSerializer().serializeToString(clone)],
+    { type: 'image/svg+xml;charset=utf-8' }
+  )
+  const svgURL = URL.createObjectURL(svgBlob)
+
+  await new Promise((resolve, reject) => {
+    const img = new Image()
     img.onload = () => {
       const canvas = document.createElement('canvas')
       canvas.width  = w
@@ -298,28 +315,29 @@
         ctx.fillStyle = bgColor
         ctx.fillRect(0, 0, w, h)
       }
-
       ctx.drawImage(img, 0, 0, w, h)
-      URL.revokeObjectURL(url)
+      URL.revokeObjectURL(svgURL)
 
-      const mime    = isJPG ? 'image/jpeg' : 'image/png'
-      const quality = isJPG ? 0.97 : 1
-      canvas.toBlob(blob2 => {
-        trigger(URL.createObjectURL(blob2), fileName + ext)
-      }, mime, quality)
+      const isJPG = !!bgColor
+      const mime  = isJPG ? 'image/jpeg' : 'image/png'
+      const ext   = isJPG ? '.jpg' : '.png'
+      canvas.toBlob(b => { trigger(URL.createObjectURL(b), name + ext); resolve() }, mime, 0.97)
     }
+    img.onerror = () => { URL.revokeObjectURL(svgURL); reject(new Error('SVG render failed')) }
+    img.src = svgURL
+  }).catch(err => {
+    alert('Export failed: ' + err.message + '\n\nTry the SVG button instead and convert online.')
+  })
+}
 
-    img.onerror = () => alert('Font may not have loaded yet — wait a second and try again.')
-    img.src = url
-  }
+function trigger(href, name) {
+  const a = Object.assign(document.createElement('a'), { href, download: name })
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(href), 8000)
+}
 
-  function trigger(href, name) {
-    const a = document.createElement('a')
-    a.href     = href
-    a.download = name
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(href), 5000)
-  }
+// Start loading font immediately
+preloadFont()
 </script>
 </body>
 </html>
