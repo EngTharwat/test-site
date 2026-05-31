@@ -65,6 +65,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const {
       zoneId, lineNumber, fromMH, toMH, diameter, length, material,
       startLat, startLng, endLat, endLng,
+      basecourseThickness, asphaltThickness,
       excavation, piping, backfilling, basecourse, asphalt,
     } = body
 
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (!length)   return Response.json({ error: 'length is required' },   { status: 400 })
 
     const len = Number(length) || 0
+    const bcThk  = basecourseThickness != null ? Number(basecourseThickness) : 0
+    const aspThk = asphaltThickness    != null ? Number(asphaltThickness)    : 0
+    const surfaceType = aspThk > 0 ? 'asphalt' : 'dirt'
 
     const data = {
       projectId,
@@ -82,6 +86,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       diameter:   Number(diameter)   || 0,
       length:     len,
       material:   material           ?? 'uPVC',
+      basecourseThickness: bcThk,
+      asphaltThickness:    aspThk,
+      surfaceType,
       startLat:   startLat != null   ? Number(startLat) : null,
       startLng:   startLng != null   ? Number(startLng) : null,
       endLat:     endLat   != null   ? Number(endLat)   : null,

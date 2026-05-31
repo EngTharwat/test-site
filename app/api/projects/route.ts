@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
     const {
       name, client, contractor, consultant, location, projectType,
       contractValue, currency, totalNetworkLength, contractStartDate,
-      contractEndDate, status, description,
+      contractEndDate, description,
+      gravityLength, forcemainLength, houseConnectionsLength,
     } = body
 
     if (!name?.trim()) return Response.json({ error: 'Project name is required' }, { status: 400 })
@@ -76,8 +77,11 @@ export async function POST(request: NextRequest) {
       totalNetworkLength:  Number(totalNetworkLength)  || 0,
       contractStartDate:   contractStartDate           ?? '',
       contractEndDate:     contractEndDate             ?? '',
-      status:              status                      ?? 'planning',
+      status:              'planning',
       description:         description?.trim()         ?? '',
+      gravityLength:          Number(gravityLength)          || 0,
+      forcemainLength:        Number(forcemainLength)        || 0,
+      houseConnectionsLength: Number(houseConnectionsLength) || 0,
       totalZones:      0,
       totalSegments:   0,
       executedLength:  0,

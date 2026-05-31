@@ -43,6 +43,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const progressFields   = ['excavation','piping','backfilling','basecourse','asphalt','overallPct','status']
     const structuralFields = ['zoneId','lineNumber','fromMH','toMH','diameter','length','material',
+                              'basecourseThickness','asphaltThickness','surfaceType',
                               'startLat','startLng','endLat','endLng']
 
     const allowed = [

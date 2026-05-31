@@ -8,28 +8,22 @@ import { api } from '@/lib/api'
 import { Segment, Zone, PIPE_MATERIALS, ACTIVITY_KEYS, fmtN } from '@/lib/types'
 
 const inputCls = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
+const filterCls = 'border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500'
 
-// ── Bulk upload types ─────────────────────────────────────────────────────────
+// ── Bulk row type ─────────────────────────────────────────────────────────────
 interface BulkRow {
-  rowNum:     number
-  zoneName:   string
-  zoneId:     string | null
-  lineNumber: string
-  fromMH:     string
-  toMH:       string
-  diameter:   number
-  length:     number
-  material:   string
-  startLat:   number | null
-  startLng:   number | null
-  endLat:     number | null
-  endLng:     number | null
-  error?:     string
+  rowNum: number; zoneName: string; zoneId: string | null
+  lineNumber: string; fromMH: string; toMH: string
+  diameter: number; length: number; material: string
+  startLat: number | null; startLng: number | null
+  endLat: number | null; endLng: number | null
+  error?: string
 }
 
 const emptyForm = {
   zoneId: '', lineNumber: '', fromMH: '', toMH: '',
   diameter: '', length: '', material: 'uPVC',
+  basecourseThickness: '0', asphaltThickness: '0',
   startLat: '', startLng: '', endLat: '', endLng: '',
 }
 
@@ -48,16 +42,23 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   const [error,       setError]       = useState('')
   const [showForm,    setShowForm]    = useState(false)
   const [saving,      setSaving]      = useState(false)
-  const [filterZone,  setFilterZone]  = useState('')
   const [editSegment, setEditSegment] = useState<Segment | null>(null)
   const [form, setForm] = useState(emptyForm)
 
-  // Bulk upload state
-  const fileInputRef  = useRef<HTMLInputElement>(null)
-  const [bulkRows,    setBulkRows]    = useState<BulkRow[]>([])
-  const [showBulk,    setShowBulk]    = useState(false)
-  const [bulkSaving,  setBulkSaving]  = useState(false)
-  const [bulkResult,  setBulkResult]  = useState<{ ok: number; fail: number } | null>(null)
+  // Filters
+  const [fZone,     setFZone]     = useState('')
+  const [fType,     setFType]     = useState('')
+  const [fLine,     setFLine]     = useState('')
+  const [fDia,      setFDia]      = useState('')
+  const [fMaterial, setFMaterial] = useState('')
+  const [fSurface,  setFSurface]  = useState('')
+
+  // Bulk upload
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [bulkRows,   setBulkRows]   = useState<BulkRow[]>([])
+  const [showBulk,   setShowBulk]   = useState(false)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkResult, setBulkResult] = useState<{ ok: number; fail: number } | null>(null)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -76,11 +77,49 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  // ── Zone label helper ─────────────────────────────────────────────────────
-  const zoneLabel = (z: Zone) => z.type ? `${z.name} — ${z.type}` : z.name
+  // ── Derived helpers ───────────────────────────────────────────────────────
   const zoneMap   = Object.fromEntries(zones.map(z => [z.id, z]))
+  const zoneLabel = (z: Zone) => z.type ? `${z.name} — ${z.type}` : z.name
+  const uniqueTypes = [...new Set(zones.map(z => z.type).filter(Boolean))]
+  const uniqueDias  = [...new Set(segments.map(s => s.diameter).filter(Boolean))].sort((a, b) => a - b)
 
-  // ── Bulk upload helpers ───────────────────────────────────────────────────
+  // ── Apply all filters ─────────────────────────────────────────────────────
+  const displayed = segments.filter(seg => {
+    const zone = zoneMap[seg.zoneId]
+    if (fZone     && seg.zoneId   !== fZone)                         return false
+    if (fType     && zone?.type   !== fType)                         return false
+    if (fLine     && !seg.lineNumber?.toLowerCase().includes(fLine.toLowerCase())) return false
+    if (fDia      && String(seg.diameter) !== fDia)                  return false
+    if (fMaterial && seg.material !== fMaterial)                     return false
+    if (fSurface  && (seg.surfaceType ?? 'dirt') !== fSurface)       return false
+    return true
+  })
+  const totalLen = displayed.reduce((s, seg) => s + (seg.length || 0), 0)
+
+  // ── Surface type badge ────────────────────────────────────────────────────
+  const surfaceBadge = (seg: Segment) => {
+    const type = seg.surfaceType ?? ((seg.asphaltThickness ?? 0) > 0 ? 'asphalt' : 'dirt')
+    return type === 'asphalt'
+      ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gray-900 text-white dark:bg-gray-200 dark:text-gray-900">Asphalt</span>
+      : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Dirt</span>
+  }
+
+  // ── Activity dot ──────────────────────────────────────────────────────────
+  const activityDot = (seg: Segment, key: string, color: string) => {
+    const done = ((seg as any)[key]?.pct ?? 0) >= 100
+    return (
+      <span
+        className="inline-block w-3.5 h-3.5 rounded-full border-2 transition-colors"
+        style={{
+          background:   done ? color : 'transparent',
+          borderColor:  color,
+          opacity:      done ? 1 : 0.4,
+        }}
+      />
+    )
+  }
+
+  // ── Bulk upload ───────────────────────────────────────────────────────────
   function buildZoneLookup() {
     const map = new Map<string, Zone>()
     zones.forEach(z => {
@@ -91,29 +130,36 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   }
 
   async function downloadTemplate() {
-    const XLSX = (await import('xlsx')).default ?? await import('xlsx')
-    const headers = ['Zone', 'Line No.', 'From MH', 'To MH', 'Diameter (mm)', 'Length (m)', 'Material',
-                     'Start Lat', 'Start Long', 'End Lat', 'End Long']
+    const XLSX = await import('xlsx')
+    const headers = ['Zone','Line No.','From MH','To MH','Diameter (mm)','Length (m)','Material',
+                     'Start Lat','Start Long','End Lat','End Long']
     const example = zones.length > 0
-      ? [zoneLabel(zones[0]), 'L-001', 'MH-01', 'MH-02', '300', '45.5', 'uPVC', '', '', '', '']
-      : ['Zone A — Gravity',  'L-001', 'MH-01', 'MH-02', '300', '45.5', 'uPVC', '', '', '', '']
+      ? [zoneLabel(zones[0]),'L-001','MH-01','MH-02','300','45.5','uPVC','','','','']
+      : ['Zone A — Gravity','L-001','MH-01','MH-02','300','45.5','uPVC','','','','']
 
     const ws = XLSX.utils.aoa_to_sheet([headers, example])
-
-    // Column widths
-    ws['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-                   { wch: 14 }, { wch: 10 }, { wch: 10 },
-                   { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }]
+    ws['!cols'] = [{wch:28},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12}]
 
     // Zones reference sheet
-    const zonesWs = XLSX.utils.aoa_to_sheet([
+    const zonesData = [
       ['Zone (copy exact value into Zone column)'],
       ...zones.map(z => [zoneLabel(z)]),
-    ])
+    ]
+    const zonesWs = XLSX.utils.aoa_to_sheet(zonesData)
+    zonesWs['!cols'] = [{wch: 40}]
+
+    // Material reference sheet
+    const matData = [
+      ['Material (copy exact value into Material column)'],
+      ...PIPE_MATERIALS.map(m => [m]),
+    ]
+    const matWs = XLSX.utils.aoa_to_sheet(matData)
+    matWs['!cols'] = [{wch: 40}]
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Segments')
     XLSX.utils.book_append_sheet(wb, zonesWs, 'Zones Reference')
+    XLSX.utils.book_append_sheet(wb, matWs, 'Material Reference')
     XLSX.writeFile(wb, 'pmboards-segments-template.xlsx')
   }
 
@@ -121,8 +167,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-
-    const XLSX = (await import('xlsx')).default ?? await import('xlsx')
+    const XLSX = await import('xlsx')
     const lookup = buildZoneLookup()
 
     const reader = new FileReader()
@@ -130,18 +175,14 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
       const wb   = XLSX.read(ev.target!.result, { type: 'binary' })
       const ws   = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
-
       if (rows.length < 2) { setError('File has no data rows'); return }
 
       const [headerRow, ...dataRows] = rows
-      const hdr = (i: number) => String(headerRow[i] ?? '').toLowerCase()
-
-      // Find column indices by header name
       const col = {
         zone:     headerRow.findIndex((_: any, i: number) => /zone/i.test(String(headerRow[i]))),
         line:     headerRow.findIndex((_: any, i: number) => /line/i.test(String(headerRow[i]))),
         from:     headerRow.findIndex((_: any, i: number) => /from/i.test(String(headerRow[i]))),
-        to:       headerRow.findIndex((_: any, i: number) => /to\b/i.test(String(headerRow[i]))),
+        to:       headerRow.findIndex((_: any, i: number) => /\bto\b/i.test(String(headerRow[i]))),
         diameter: headerRow.findIndex((_: any, i: number) => /diam/i.test(String(headerRow[i]))),
         length:   headerRow.findIndex((_: any, i: number) => /length/i.test(String(headerRow[i]))),
         material: headerRow.findIndex((_: any, i: number) => /material/i.test(String(headerRow[i]))),
@@ -152,19 +193,16 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
       }
 
       const parsed: BulkRow[] = dataRows
-        .filter(row => row.some((c: any) => String(c).trim()))   // skip blank rows
+        .filter(row => row.some((c: any) => String(c).trim()))
         .map((row, idx) => {
           const zoneName = String(row[col.zone] ?? '').trim()
           const zone     = lookup.get(zoneName.toLowerCase())
           const length   = parseFloat(String(row[col.length] ?? '')) || 0
           const errors: string[] = []
-
-          if (!zoneName)   errors.push('Zone is required')
+          if (!zoneName)   errors.push('Zone required')
           else if (!zone)  errors.push(`Zone "${zoneName}" not found`)
           if (length <= 0) errors.push('Length must be > 0')
-
           const mat = String(row[col.material] ?? 'uPVC').trim()
-
           return {
             rowNum:     idx + 2,
             zoneName,
@@ -175,17 +213,15 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
             diameter:   parseFloat(String(row[col.diameter] ?? '')) || 0,
             length,
             material:   PIPE_MATERIALS.includes(mat as any) ? mat : 'uPVC',
-            startLat:   col.sLat >= 0 ? parseFloat(String(row[col.sLat])) || null : null,
-            startLng:   col.sLng >= 0 ? parseFloat(String(row[col.sLng])) || null : null,
-            endLat:     col.eLat >= 0 ? parseFloat(String(row[col.eLat])) || null : null,
-            endLng:     col.eLng >= 0 ? parseFloat(String(row[col.eLng])) || null : null,
+            startLat:   col.sLat >= 0 && String(row[col.sLat]).trim() ? parseFloat(String(row[col.sLat])) || null : null,
+            startLng:   col.sLng >= 0 && String(row[col.sLng]).trim() ? parseFloat(String(row[col.sLng])) || null : null,
+            endLat:     col.eLat >= 0 && String(row[col.eLat]).trim() ? parseFloat(String(row[col.eLat])) || null : null,
+            endLng:     col.eLng >= 0 && String(row[col.eLng]).trim() ? parseFloat(String(row[col.eLng])) || null : null,
             error:      errors.join('; ') || undefined,
           }
         })
 
-      setBulkRows(parsed)
-      setShowBulk(true)
-      setBulkResult(null)
+      setBulkRows(parsed); setShowBulk(true); setBulkResult(null)
     }
     reader.readAsBinaryString(file)
   }
@@ -195,38 +231,26 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     if (!valid.length) return
     setBulkSaving(true)
     let ok = 0, fail = 0
-
     for (const row of valid) {
       const defaultAct = (qty: number) => ({ plannedQty: qty, actualQty: 0, pct: 0, status: 'not_started' })
       try {
         const seg = await api.post(`/api/projects/${projectId}/segments`, {
-          zoneId:     row.zoneId!,
-          lineNumber: row.lineNumber,
-          fromMH:     row.fromMH,
-          toMH:       row.toMH,
-          diameter:   row.diameter,
-          length:     row.length,
-          material:   row.material,
-          startLat:   row.startLat,
-          startLng:   row.startLng,
-          endLat:     row.endLat,
-          endLng:     row.endLng,
-          excavation:  defaultAct(row.length),
-          piping:      defaultAct(row.length),
-          backfilling: defaultAct(row.length),
-          basecourse:  defaultAct(row.length),
-          asphalt:     defaultAct(row.length),
-          overallPct: 0,
-          status: 'not_started',
+          zoneId: row.zoneId!, lineNumber: row.lineNumber, fromMH: row.fromMH, toMH: row.toMH,
+          diameter: row.diameter, length: row.length, material: row.material,
+          basecourseThickness: 0, asphaltThickness: 0,
+          startLat: row.startLat, startLng: row.startLng,
+          endLat: row.endLat,   endLng: row.endLng,
+          excavation: defaultAct(row.length), piping: defaultAct(row.length),
+          backfilling: defaultAct(row.length), basecourse: defaultAct(row.length),
+          asphalt: defaultAct(row.length), overallPct: 0, status: 'not_started',
         })
         setSegments(prev => [seg, ...prev])
         ok++
       } catch { fail++ }
     }
-
     setBulkResult({ ok, fail })
     setBulkSaving(false)
-    if (fail === 0) { setTimeout(() => { setShowBulk(false); setBulkRows([]) }, 1500) }
+    if (fail === 0) setTimeout(() => { setShowBulk(false); setBulkRows([]) }, 1500)
   }
 
   // ── Manual form ───────────────────────────────────────────────────────────
@@ -240,6 +264,8 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
       diameter:   String(seg.diameter),
       length:     String(seg.length),
       material:   seg.material,
+      basecourseThickness: String(seg.basecourseThickness ?? 0),
+      asphaltThickness:    String(seg.asphaltThickness    ?? 0),
       startLat:   seg.startLat != null ? String(seg.startLat) : '',
       startLng:   seg.startLng != null ? String(seg.startLng) : '',
       endLat:     seg.endLat   != null ? String(seg.endLat)   : '',
@@ -250,12 +276,12 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   }
 
   async function deleteSeg(segId: string) {
-    if (!confirm('Delete this segment? This cannot be undone.')) return
+    if (!confirm('Delete this segment?')) return
     try {
       await api.delete(`/api/projects/${projectId}/segments/${segId}`)
       setSegments(prev => prev.filter(s => s.id !== segId))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to delete segment')
+      setError(err instanceof Error ? err.message : 'Failed to delete')
     }
   }
 
@@ -263,19 +289,19 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     e.preventDefault()
     if (!form.zoneId) { setError('Please select a zone'); return }
     setSaving(true); setError('')
-    const len = Number(form.length) || 0
+    const len   = Number(form.length) || 0
+    const bcThk = Number(form.basecourseThickness) // allow 0
+    const aspThk = Number(form.asphaltThickness)   // allow 0
     const body = {
-      zoneId:     form.zoneId,
-      lineNumber: form.lineNumber.trim(),
-      fromMH:     form.fromMH.trim(),
-      toMH:       form.toMH.trim(),
-      diameter:   Number(form.diameter) || 0,
-      length:     len,
-      material:   form.material,
-      startLat:   form.startLat ? Number(form.startLat) : null,
-      startLng:   form.startLng ? Number(form.startLng) : null,
-      endLat:     form.endLat   ? Number(form.endLat)   : null,
-      endLng:     form.endLng   ? Number(form.endLng)   : null,
+      zoneId: form.zoneId, lineNumber: form.lineNumber.trim(),
+      fromMH: form.fromMH.trim(), toMH: form.toMH.trim(),
+      diameter: Number(form.diameter) || 0, length: len, material: form.material,
+      basecourseThickness: bcThk, asphaltThickness: aspThk,
+      surfaceType: aspThk > 0 ? 'asphalt' : 'dirt',
+      startLat: form.startLat ? Number(form.startLat) : null,
+      startLng: form.startLng ? Number(form.startLng) : null,
+      endLat:   form.endLat   ? Number(form.endLat)   : null,
+      endLng:   form.endLng   ? Number(form.endLng)   : null,
     }
     try {
       if (editSegment) {
@@ -285,13 +311,9 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         const defaultAct = (qty: number) => ({ plannedQty: qty, actualQty: 0, pct: 0, status: 'not_started' })
         const seg = await api.post(`/api/projects/${projectId}/segments`, {
           ...body,
-          excavation:  defaultAct(len),
-          piping:      defaultAct(len),
-          backfilling: defaultAct(len),
-          basecourse:  defaultAct(len),
-          asphalt:     defaultAct(len),
-          overallPct:  0,
-          status:      'not_started',
+          excavation: defaultAct(len), piping: defaultAct(len),
+          backfilling: defaultAct(len), basecourse: defaultAct(len),
+          asphalt: defaultAct(len), overallPct: 0, status: 'not_started',
         })
         setSegments(prev => [seg, ...prev])
       }
@@ -306,14 +328,11 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const displayed = filterZone ? segments.filter(s => s.zoneId === filterZone) : segments
-  const totalLen  = displayed.reduce((s, seg) => s + (seg.length || 0), 0)
   const validBulkCount = bulkRows.filter(r => !r.error).length
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
 
-      {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
 
       {/* Header */}
@@ -328,46 +347,55 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
-            <button
-              onClick={downloadTemplate}
-              className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              title="Download Excel template"
-            >
+            <button onClick={downloadTemplate}
+              className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               ↓ Template
             </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
-              title="Bulk upload from Excel"
-            >
+            <button onClick={() => fileInputRef.current?.click()}
+              className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
               ↑ Bulk Upload
             </button>
-            <button
-              onClick={() => { setForm(emptyForm); setEditSegment(null); setShowForm(v => !v) }}
-              className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
-            >
+            <button onClick={() => { setForm(emptyForm); setEditSegment(null); setShowForm(v => !v) }}
+              className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
               + Add Segment
             </button>
           </div>
         )}
       </div>
 
-      {/* Filter + stats */}
-      <div className="flex items-center gap-4 mb-6">
-        <select
-          className="border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500"
-          value={filterZone} onChange={e => setFilterZone(e.target.value)}
-        >
-          <option value="">All Zones ({segments.length})</option>
-          {zones.map(z => (
-            <option key={z.id} value={z.id}>
-              {zoneLabel(z)} ({segments.filter(s => s.zoneId === z.id).length})
-            </option>
-          ))}
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-5 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+        <select className={filterCls} value={fZone}     onChange={e => setFZone(e.target.value)}>
+          <option value="">All Zones</option>
+          {zones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)}</option>)}
         </select>
-        <span className="text-[12px] text-[#6B7280] dark:text-gray-400">
-          {displayed.length} segments · {fmtN(totalLen, 1)} m total
+        <select className={filterCls} value={fType}     onChange={e => setFType(e.target.value)}>
+          <option value="">All Types</option>
+          {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input className={filterCls} style={{ width: 110 }} placeholder="Line No." value={fLine} onChange={e => setFLine(e.target.value)} />
+        <select className={filterCls} value={fDia}      onChange={e => setFDia(e.target.value)}>
+          <option value="">All Ø</option>
+          {uniqueDias.map(d => <option key={d} value={d}>{d} mm</option>)}
+        </select>
+        <select className={filterCls} value={fMaterial} onChange={e => setFMaterial(e.target.value)}>
+          <option value="">All Materials</option>
+          {PIPE_MATERIALS.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <select className={filterCls} value={fSurface}  onChange={e => setFSurface(e.target.value)}>
+          <option value="">All Surfaces</option>
+          <option value="asphalt">Asphalt</option>
+          <option value="dirt">Dirt</option>
+        </select>
+        <span className="ml-auto text-[12px] text-[#6B7280] dark:text-gray-400">
+          {displayed.length} segments · {fmtN(totalLen, 1)} m
         </span>
+        {(fZone||fType||fLine||fDia||fMaterial||fSurface) && (
+          <button onClick={() => { setFZone(''); setFType(''); setFLine(''); setFDia(''); setFMaterial(''); setFSurface('') }}
+            className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
+            ✕ Clear
+          </button>
+        )}
       </div>
 
       {/* Manual form */}
@@ -381,23 +409,19 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Zone *</label>
               <select className={inputCls} value={form.zoneId} onChange={set('zoneId')} required>
                 <option value="">— Select Zone —</option>
-                {zones.map(z => (
-                  <option key={z.id} value={z.id}>{zoneLabel(z)}</option>
-                ))}
+                {zones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Line No.</label>
-              <input className={inputCls} value={form.lineNumber} onChange={set('lineNumber')} placeholder="L-001" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">From MH</label>
-              <input className={inputCls} value={form.fromMH} onChange={set('fromMH')} placeholder="MH-01" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">To MH</label>
-              <input className={inputCls} value={form.toMH} onChange={set('toMH')} placeholder="MH-02" />
-            </div>
+            {[
+              { key: 'lineNumber', label: 'Line No.', placeholder: 'L-001' },
+              { key: 'fromMH',     label: 'From MH',  placeholder: 'MH-01' },
+              { key: 'toMH',       label: 'To MH',    placeholder: 'MH-02' },
+            ].map(f => (
+              <div key={f.key}>
+                <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">{f.label}</label>
+                <input className={inputCls} value={(form as any)[f.key]} onChange={set(f.key)} placeholder={f.placeholder} />
+              </div>
+            ))}
             <div>
               <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Diameter (mm)</label>
               <input className={inputCls} type="number" min="0" value={form.diameter} onChange={set('diameter')} placeholder="300" />
@@ -413,22 +437,41 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Start Lat</label>
-              <input className={inputCls} type="number" step="any" value={form.startLat} onChange={set('startLat')} placeholder="24.123456" />
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">
+                Basecoarse Thickness (cm)
+                <span className="ml-1 text-[9px] text-[#9CA3AF]">0 = absent</span>
+              </label>
+              <input className={inputCls} type="number" min="0" step="0.1" value={form.basecourseThickness} onChange={set('basecourseThickness')} placeholder="0" />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Start Lng</label>
-              <input className={inputCls} type="number" step="any" value={form.startLng} onChange={set('startLng')} placeholder="46.789012" />
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">
+                Asphalt Thickness (cm)
+                <span className="ml-1 text-[9px] text-[#9CA3AF]">0 = Dirt surface</span>
+              </label>
+              <input className={inputCls} type="number" min="0" step="0.1" value={form.asphaltThickness} onChange={set('asphaltThickness')} placeholder="0" />
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">End Lat</label>
-              <input className={inputCls} type="number" step="any" value={form.endLat} onChange={set('endLat')} placeholder="24.123789" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">End Lng</label>
-              <input className={inputCls} type="number" step="any" value={form.endLng} onChange={set('endLng')} placeholder="46.789345" />
-            </div>
+            {[
+              { key: 'startLat', label: 'Start Lat', placeholder: '24.123456' },
+              { key: 'startLng', label: 'Start Lng', placeholder: '46.789012' },
+              { key: 'endLat',   label: 'End Lat',   placeholder: '24.123789' },
+              { key: 'endLng',   label: 'End Lng',   placeholder: '46.789345' },
+            ].map(f => (
+              <div key={f.key}>
+                <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">{f.label}</label>
+                <input className={inputCls} type="number" step="any" value={(form as any)[f.key]} onChange={set(f.key)} placeholder={f.placeholder} />
+              </div>
+            ))}
           </div>
+          {/* Preview surface type */}
+          {form.length && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">Surface type:</span>
+              {Number(form.asphaltThickness) > 0
+                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-900 text-white">Asphalt</span>
+                : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Dirt</span>
+              }
+            </div>
+          )}
           {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
           <div className="flex gap-3 mt-4">
             <button type="submit" disabled={saving}
@@ -445,7 +488,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
 
       {error && !showForm && <p className="text-sm text-red-500 mb-4">{error}</p>}
 
-      {/* Bulk upload preview modal */}
+      {/* Bulk upload modal */}
       {showBulk && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-10 px-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-5xl mb-10">
@@ -459,16 +502,11 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               <button onClick={() => { setShowBulk(false); setBulkRows([]); setBulkResult(null) }}
                 className="text-[#6B7280] hover:text-black dark:hover:text-white text-xl">×</button>
             </div>
-
             {bulkResult ? (
               <div className="px-6 py-8 text-center">
-                <div className="text-3xl mb-3">{bulkResult.fail === 0 ? '✅' : '⚠️'}</div>
-                <p className="text-[15px] font-bold text-black dark:text-white mb-1">
-                  Upload complete
-                </p>
-                <p className="text-sm text-[#6B7280] dark:text-gray-400">
-                  {bulkResult.ok} saved · {bulkResult.fail} failed
-                </p>
+                <p className="text-3xl mb-3">{bulkResult.fail === 0 ? '✅' : '⚠️'}</p>
+                <p className="text-[15px] font-bold text-black dark:text-white mb-1">Upload complete</p>
+                <p className="text-sm text-[#6B7280] dark:text-gray-400">{bulkResult.ok} saved · {bulkResult.fail} failed</p>
               </div>
             ) : (
               <>
@@ -477,7 +515,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                     <thead className="sticky top-0 bg-[#F3F4F6] dark:bg-gray-800">
                       <tr>
                         {['Row','Zone','Line','From','To','Ø mm','Length m','Material','Status'].map(h => (
-                          <th key={h} className="text-left px-3 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                          <th key={h} className="text-left px-3 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -504,18 +542,12 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                   </table>
                 </div>
                 <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
-                  <button
-                    onClick={confirmBulkUpload}
-                    disabled={bulkSaving || validBulkCount === 0}
-                    className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors"
-                  >
-                    {bulkSaving ? `Saving… (${validBulkCount} rows)` : `Save ${validBulkCount} Valid Rows`}
+                  <button onClick={confirmBulkUpload} disabled={bulkSaving || validBulkCount === 0}
+                    className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
+                    {bulkSaving ? `Saving… (${validBulkCount})` : `Save ${validBulkCount} Valid Rows`}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowBulk(false); setBulkRows([]); setBulkResult(null) }}
-                    className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                  >
+                  <button type="button" onClick={() => { setShowBulk(false); setBulkRows([]); setBulkResult(null) }}
+                    className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                     Cancel
                   </button>
                 </div>
@@ -525,25 +557,23 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         </div>
       )}
 
-      {/* Segments table */}
+      {/* Table */}
       {loading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />)}</div>
       ) : displayed.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
           <div className="text-3xl mb-3">🔧</div>
-          <p className="text-sm font-semibold text-black dark:text-white mb-1">No segments yet</p>
-          <p className="text-[12px] text-[#6B7280] dark:text-gray-400">
-            Add segments manually or use Bulk Upload with the Excel template.
-          </p>
+          <p className="text-sm font-semibold text-black dark:text-white mb-1">No segments match</p>
+          <p className="text-[12px] text-[#6B7280] dark:text-gray-400">Add segments or adjust filters.</p>
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                {['Zone','Line','MH From → To','Ø (mm)','Length (m)','Material',
-                  ...ACTIVITY_KEYS.map(a => a.label.slice(0,4)), 'Overall', ''].map((h, i) => (
-                  <th key={i} className={`px-4 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i >= 6 && i <= 10 ? 'text-center' : i > 10 ? 'text-right' : 'text-left'}`}>
+                {['Zone','Line','From → To','Ø mm','Len m','Material','Surface',
+                  ...ACTIVITY_KEYS.map(a => a.label.slice(0,5)), ''].map((h, i) => (
+                  <th key={i} className={`px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i >= 7 ? 'text-center' : i >= 3 ? 'text-right' : 'text-left'}`}>
                     {h}
                   </th>
                 ))}
@@ -554,37 +584,25 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                 const zone = zoneMap[seg.zoneId]
                 return (
                   <tr key={seg.id} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="px-4 py-3 text-[#374151] dark:text-gray-300">
-                      {zone ? (
-                        <span>
-                          {zone.name}
-                          {zone.type && <span className="ml-1 text-[9px] text-[#6B7280] dark:text-gray-500">({zone.type})</span>}
-                        </span>
-                      ) : '—'}
+                    <td className="px-3 py-3">
+                      <div className="text-[#374151] dark:text-gray-300 font-medium">{zone?.name ?? '—'}</div>
+                      {zone?.type && <div className="text-[9px] text-[#9CA3AF] dark:text-gray-500">{zone.type}</div>}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-black dark:text-white">{seg.lineNumber || '—'}</td>
-                    <td className="px-4 py-3 text-[#374151] dark:text-gray-300">{seg.fromMH} → {seg.toMH}</td>
-                    <td className="px-4 py-3 text-right text-[#374151] dark:text-gray-300">{fmtN(seg.diameter)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-black dark:text-white">{fmtN(seg.length, 1)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 font-semibold text-black dark:text-white">{seg.lineNumber || '—'}</td>
+                    <td className="px-3 py-3 text-[#374151] dark:text-gray-300 whitespace-nowrap">{seg.fromMH} → {seg.toMH}</td>
+                    <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300">{fmtN(seg.diameter)}</td>
+                    <td className="px-3 py-3 text-right font-medium text-black dark:text-white">{fmtN(seg.length, 1)}</td>
+                    <td className="px-3 py-3">
                       <span className="bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">{seg.material}</span>
                     </td>
-                    {ACTIVITY_KEYS.map(a => {
-                      const pct = (seg as any)[a.key]?.pct || 0
-                      return (
-                        <td key={a.key} className="px-2 py-3">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <div className="h-1 w-10 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${Math.min(pct,100)}%`, background: a.color }} />
-                            </div>
-                            <span className="text-[9px] text-[#6B7280] dark:text-gray-400">{pct}%</span>
-                          </div>
-                        </td>
-                      )
-                    })}
-                    <td className="px-4 py-3 text-right font-bold text-black dark:text-white">{seg.overallPct || 0}%</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2.5 justify-end whitespace-nowrap">
+                    <td className="px-3 py-3">{surfaceBadge(seg)}</td>
+                    {ACTIVITY_KEYS.map(a => (
+                      <td key={a.key} className="px-3 py-3 text-center">
+                        {activityDot(seg, a.key, a.color)}
+                      </td>
+                    ))}
+                    <td className="px-3 py-3">
+                      <div className="flex gap-2 justify-end whitespace-nowrap">
                         {canEdit && (
                           <>
                             <button onClick={() => openEdit(seg)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white">Edit</button>
@@ -599,10 +617,10 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
             </tbody>
             <tfoot>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
-                <td colSpan={4} className="px-4 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
+                <td colSpan={4} className="px-3 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
                   Total ({displayed.length} segments)
                 </td>
-                <td className="px-4 py-3 text-right text-[12px] font-bold text-black dark:text-white">{fmtN(totalLen, 1)}</td>
+                <td className="px-3 py-3 text-right text-[12px] font-bold text-black dark:text-white">{fmtN(totalLen, 1)}</td>
                 <td colSpan={8} />
               </tr>
             </tfoot>

@@ -49,6 +49,10 @@ export interface Project {
   contractEndDate:     string
   status:              ProjectStatus
   description:         string
+  // Sewer-network breakdown lengths (metres)
+  gravityLength?:          number
+  forcemainLength?:        number
+  houseConnectionsLength?: number
   // Cached aggregates — updated by write operations
   totalZones:      number
   totalSegments:   number
@@ -77,6 +81,8 @@ export interface Zone {
 }
 
 // ── Network Segment (Pipe) ────────────────────────────────────────────────────
+export type SurfaceType = 'asphalt' | 'dirt'
+
 export interface Segment {
   id:         string
   projectId:  string
@@ -87,6 +93,10 @@ export interface Segment {
   diameter:   number   // mm
   length:     number   // metres
   material:   PipeMaterial
+  // Pavement thicknesses (cm) — 0 means that layer is absent
+  basecourseThickness?: number
+  asphaltThickness?:    number
+  surfaceType?:         SurfaceType   // derived from asphaltThickness
   // GIS coordinates
   startLat?: number
   startLng?: number
@@ -148,11 +158,11 @@ export const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string; do
 }
 
 export const ACTIVITY_KEYS = [
-  { key: 'excavation',  label: 'Excavation',  color: '#2563FF' },
-  { key: 'piping',      label: 'Pipeline',    color: '#7C3AED' },
-  { key: 'backfilling', label: 'Backfilling', color: '#f97316' },
-  { key: 'basecourse',  label: 'Base Course', color: '#22c55e' },
-  { key: 'asphalt',     label: 'Asphalt',     color: '#0F1115' },
+  { key: 'excavation',  label: 'Excavation',  color: '#ef4444' },  // Red
+  { key: 'piping',      label: 'Pipeline',    color: '#2563FF' },  // Blue
+  { key: 'backfilling', label: 'Backfilling', color: '#eab308' },  // Yellow
+  { key: 'basecourse',  label: 'Base Course', color: '#22c55e' },  // Green
+  { key: 'asphalt',     label: 'Asphalt',     color: '#111827' },  // Black
 ] as const
 
 export type ActivityKey = typeof ACTIVITY_KEYS[number]['key']

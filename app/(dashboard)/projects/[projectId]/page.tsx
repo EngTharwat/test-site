@@ -6,15 +6,15 @@ import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import {
-  Project, Zone,
+  Project, Zone, Segment,
   ProjectStatus, ProjectType, Currency,
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
   CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
 } from '@/lib/types'
 
-// ── Shared small components ───────────────────────────────────────────────────
-function StatusBadge({ status }: { status: Project['status'] }) {
+// ── Tiny shared components ────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: ProjectStatus }) {
   const c = STATUS_COLORS[status]
   return (
     <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full ${c.bg} ${c.text}`}>
@@ -24,57 +24,106 @@ function StatusBadge({ status }: { status: Project['status'] }) {
   )
 }
 
-function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+function KpiCard({ label, value, sub, accent, icon }: {
+  label: string; value: string; sub?: string; accent?: string; icon?: string
+}) {
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800">
-      <div className="text-[10px] font-semibold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">{label}</div>
-      <div className="text-2xl font-bold tracking-[-0.5px] dark:text-white" style={{ color: accent }}>
-        {value}
+      <div className="flex items-start justify-between">
+        <div className="text-[10px] font-semibold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">{label}</div>
+        {icon && <span className="text-lg">{icon}</span>}
       </div>
+      <div className="text-2xl font-bold tracking-[-0.5px] dark:text-white mt-1" style={{ color: accent }}>{value}</div>
       {sub && <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-1">{sub}</div>}
     </div>
   )
 }
 
-function ProgressBar({ pct, color = '#2563FF', height = 6 }: { pct: number; color?: string; height?: number }) {
+function Bar({ pct, color = '#2563FF', height = 6 }: { pct: number; color?: string; height?: number }) {
   return (
     <div className="bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden" style={{ height }}>
-      <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: color }} />
+      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: color }} />
     </div>
   )
 }
 
-// ── inputCls ──────────────────────────────────────────────────────────────────
+// ── Simple donut chart (SVG, no deps) ─────────────────────────────────────────
+function DonutChart({ data, size = 110 }: {
+  data: { label: string; value: number; color: string }[]
+  size?: number
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  if (!total) return (
+    <div className="flex items-center justify-center" style={{ width: size, height: size }}>
+      <div className="w-full h-full rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+        <span className="text-[11px] text-[#9CA3AF]">0</span>
+      </div>
+    </div>
+  )
+
+  const r = 40
+  const cx = 55, cy = 55
+  const circumference = 2 * Math.PI * r
+  let offset = circumference / 4  // start from top
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 110 110">
+      {data.map((d, i) => {
+        if (!d.value) return null
+        const dash = (d.value / total) * circumference
+        const el = (
+          <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+            stroke={d.color} strokeWidth="18"
+            strokeDasharray={`${dash} ${circumference}`}
+            strokeDashoffset={offset}
+          />
+        )
+        offset -= dash
+        return el
+      })}
+      {/* inner white circle */}
+      <circle cx={cx} cy={cy} r="29" fill="white" className="dark:fill-gray-900" />
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="13" fontWeight="700"
+        fill="#0F1115" className="dark:fill-white">
+        {Math.round((data[0]?.value / total) * 100)}%
+      </text>
+    </svg>
+  )
+}
+
+// ── Input class ───────────────────────────────────────────────────────────────
 const inputCls  = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
 const selectCls = inputCls + ' cursor-pointer'
 
-// ── Edit Project Modal ────────────────────────────────────────────────────────
+// ── Edit Modal ────────────────────────────────────────────────────────────────
 type EditForm = {
   name: string; client: string; contractor: string; consultant: string; location: string
   projectType: ProjectType; contractValue: string; currency: Currency
   totalNetworkLength: string; contractStartDate: string; contractEndDate: string
   status: ProjectStatus; description: string
+  gravityLength: string; forcemainLength: string; houseConnectionsLength: string
 }
 
-function EditProjectModal({
-  project, onClose, onSaved,
-}: {
-  project: Project; onClose: () => void; onSaved: (updated: Project) => void
+function EditProjectModal({ project, onClose, onSaved }: {
+  project: Project; onClose: () => void; onSaved: (p: Project) => void
 }) {
   const [form, setForm] = useState<EditForm>({
     name:               project.name,
-    client:             project.client             || '',
-    contractor:         project.contractor         || '',
-    consultant:         project.consultant         || '',
-    location:           project.location           || '',
+    client:             project.client      || '',
+    contractor:         project.contractor  || '',
+    consultant:         project.consultant  || '',
+    location:           project.location    || '',
     projectType:        project.projectType,
     contractValue:      String(project.contractValue      || 0),
     currency:           project.currency,
     totalNetworkLength: String(project.totalNetworkLength || 0),
-    contractStartDate:  project.contractStartDate  || '',
-    contractEndDate:    project.contractEndDate    || '',
+    contractStartDate:  project.contractStartDate || '',
+    contractEndDate:    project.contractEndDate   || '',
     status:             project.status,
-    description:        project.description        || '',
+    description:        project.description || '',
+    gravityLength:          String(project.gravityLength          || 0),
+    forcemainLength:        String(project.forcemainLength        || 0),
+    houseConnectionsLength: String(project.houseConnectionsLength || 0),
   })
   const [saving, setSaving] = useState(false)
   const [err,    setErr]    = useState('')
@@ -84,13 +133,15 @@ function EditProjectModal({
       setForm(f => ({ ...f, [k]: e.target.value }))
 
   async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true); setErr('')
+    e.preventDefault(); setSaving(true); setErr('')
     try {
       const updated = await api.patch(`/api/projects/${project.id}`, {
         ...form,
-        contractValue:      Number(form.contractValue)      || 0,
-        totalNetworkLength: Number(form.totalNetworkLength) || 0,
+        contractValue:          Number(form.contractValue)          || 0,
+        totalNetworkLength:     Number(form.totalNetworkLength)      || 0,
+        gravityLength:          Number(form.gravityLength)           || 0,
+        forcemainLength:        Number(form.forcemainLength)         || 0,
+        houseConnectionsLength: Number(form.houseConnectionsLength)  || 0,
       })
       onSaved(updated)
     } catch (ex: unknown) {
@@ -99,43 +150,26 @@ function EditProjectModal({
     }
   }
 
+  const isSewerNetwork = form.projectType === 'sewer_network'
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-10 px-4 overflow-y-auto"
-         onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-10 px-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-2xl mb-10"
            onClick={e => e.stopPropagation()}>
-
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h2 className="text-[15px] font-bold text-black dark:text-white tracking-[-0.3px]">Edit Project</h2>
-          <button onClick={onClose} className="text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white text-xl leading-none">×</button>
+          <h2 className="text-[15px] font-bold text-black dark:text-white">Edit Project</h2>
+          <button onClick={onClose} className="text-[#6B7280] hover:text-black dark:hover:text-white text-xl">×</button>
         </div>
-
         <form onSubmit={submit} className="p-6 space-y-5">
           <div>
             <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Project Name *</label>
             <input className={inputCls} required value={form.name} onChange={set('name')} />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Client</label>
-              <input className={inputCls} value={form.client} onChange={set('client')} />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Contractor</label>
-              <input className={inputCls} value={form.contractor} onChange={set('contractor')} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Consultant</label>
-              <input className={inputCls} value={form.consultant} onChange={set('consultant')} />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Location</label>
-              <input className={inputCls} value={form.location} onChange={set('location')} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Client</label><input className={inputCls} value={form.client} onChange={set('client')} /></div>
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Contractor</label><input className={inputCls} value={form.contractor} onChange={set('contractor')} /></div>
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Consultant</label><input className={inputCls} value={form.consultant} onChange={set('consultant')} /></div>
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Location</label><input className={inputCls} value={form.location} onChange={set('location')} /></div>
             <div>
               <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Project Type</label>
               <select className={selectCls} value={form.projectType} onChange={set('projectType')}>
@@ -148,48 +182,39 @@ function EditProjectModal({
                 {PROJECT_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Contract Value</label>
-              <input className={inputCls} type="number" min="0" step="any" value={form.contractValue} onChange={set('contractValue')} />
-            </div>
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Contract Value</label><input className={inputCls} type="number" min="0" step="any" value={form.contractValue} onChange={set('contractValue')} /></div>
             <div>
               <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Currency</label>
               <select className={selectCls} value={form.currency} onChange={set('currency')}>
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Network Length (m)</label><input className={inputCls} type="number" min="0" step="1" value={form.totalNetworkLength} onChange={set('totalNetworkLength')} /></div>
+            <div />
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Start Date</label><input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} /></div>
+            <div><label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">End Date</label><input className={inputCls} type="date" value={form.contractEndDate} onChange={set('contractEndDate')} /></div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          {isSewerNetwork && (
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Total Network Length (m)</label>
-              <input className={inputCls} type="number" min="0" step="1" value={form.totalNetworkLength} onChange={set('totalNetworkLength')} />
+              <p className="text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-2">Sewer Network Breakdown (m)</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div><label className="block text-[10px] text-[#6B7280] mb-1">Gravity</label><input className={inputCls} type="number" min="0" value={form.gravityLength} onChange={set('gravityLength')} /></div>
+                <div><label className="block text-[10px] text-[#6B7280] mb-1">Force Main</label><input className={inputCls} type="number" min="0" value={form.forcemainLength} onChange={set('forcemainLength')} /></div>
+                <div><label className="block text-[10px] text-[#6B7280] mb-1">House Conn.</label><input className={inputCls} type="number" min="0" value={form.houseConnectionsLength} onChange={set('houseConnectionsLength')} /></div>
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Contract Start Date</label>
-              <input className={inputCls} type="date" value={form.contractStartDate} onChange={set('contractStartDate')} />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Contract End Date</label>
-              <input className={inputCls} type="date" value={form.contractEndDate} onChange={set('contractEndDate')} />
-            </div>
-          </div>
+          )}
           <div>
             <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Description</label>
             <textarea className={inputCls + ' resize-none'} rows={3} value={form.description} onChange={set('description')} />
           </div>
           {err && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 px-4 py-2 rounded-lg">{err}</p>}
-          <div className="flex gap-3 pt-1">
+          <div className="flex gap-3">
             <button type="submit" disabled={saving}
               className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
               {saving ? 'Saving…' : 'Save Changes'}
             </button>
-            <button type="button" onClick={onClose} className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-              Cancel
-            </button>
+            <button type="button" onClick={onClose} className="text-sm text-[#6B7280] hover:text-black dark:hover:text-white transition-colors">Cancel</button>
           </div>
         </form>
       </div>
@@ -203,15 +228,15 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const router = useRouter()
   const { profile } = useAuth()
 
-  const isAdmin  = profile?.isAdmin ?? false
+  const isAdmin = profile?.isAdmin ?? false
   const pagePerm = (!isAdmin && profile?.permissions)
-    ? getProjectPagePermissions(profile.permissions, projectId)
-    : null
-  const canEdit  = isAdmin || pagePerm?.overview === 'edit'
+    ? getProjectPagePermissions(profile.permissions, projectId) : null
+  const canEdit     = isAdmin || pagePerm?.overview === 'edit'
   const canSeeZones = isAdmin || (pagePerm && pagePerm.zones !== 'none')
 
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
+  const [segments, setSegments] = useState<Segment[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -219,12 +244,12 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
   const fetchAll = useCallback(async () => {
     try {
-      const [proj, zoneData] = await Promise.all([
+      const [proj, zoneData, segData] = await Promise.all([
         api.get(`/api/projects/${projectId}`),
         api.get(`/api/projects/${projectId}/zones`),
+        api.get(`/api/projects/${projectId}/segments`),
       ])
-      setProject(proj)
-      setZones(zoneData)
+      setProject(proj); setZones(zoneData); setSegments(segData)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -235,14 +260,13 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   useEffect(() => { fetchAll() }, [fetchAll])
 
   async function handleDelete() {
-    if (!project) return
-    if (!confirm(`Delete "${project.name}"?\n\nAll data will be permanently removed.`)) return
+    if (!project || !confirm(`Delete "${project.name}"?\n\nAll data will be permanently removed.`)) return
     setDeleting(true)
     try {
       await api.delete(`/api/projects/${projectId}`)
       router.push('/dashboard')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to delete project')
+      setError(err instanceof Error ? err.message : 'Failed to delete')
       setDeleting(false)
     }
   }
@@ -252,35 +276,58 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />)}
     </div>
   )
+  if (error || !project) return <div className="p-8"><p className="text-red-500">{error || 'Project not found'}</p></div>
 
-  if (error || !project) return (
-    <div className="p-8">
-      <p className="text-red-500">{error || 'Project not found'}</p>
-    </div>
-  )
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const days      = project.contractEndDate ? daysRemaining(project.contractEndDate) : null
+  const totalSegs = segments.length
+  const asphaltSegs = segments.filter(s => (s.surfaceType ?? ((s.asphaltThickness ?? 0) > 0 ? 'asphalt' : 'dirt')) === 'asphalt').length
+  const dirtSegs    = totalSegs - asphaltSegs
 
-  const days = project.contractEndDate ? daysRemaining(project.contractEndDate) : null
+  // Activity completion (% of segments with that activity done)
+  const actStats = ACTIVITY_KEYS.map(act => {
+    const done = segments.filter(s => ((s as any)[act.key]?.pct ?? 0) >= 100).length
+    return { ...act, done, pct: totalSegs > 0 ? Math.round((done / totalSegs) * 100) : 0 }
+  })
+
+  // Per-zone segment count and progress
+  const zoneStats = zones.map(zone => {
+    const zSegs    = segments.filter(s => s.zoneId === zone.id)
+    const avgPct   = zSegs.length ? Math.round(zSegs.reduce((s, seg) => s + (seg.overallPct || 0), 0) / zSegs.length) : 0
+    const totalLen = zSegs.reduce((s, seg) => s + (seg.length || 0), 0)
+    return { ...zone, segCount: zSegs.length, avgPct, totalLen }
+  })
+
+  // Overall project progress from segments
+  const projectPct = totalSegs > 0
+    ? Math.round(segments.reduce((s, seg) => s + (seg.overallPct || 0), 0) / totalSegs)
+    : project.completionPct || 0
+
+  const isSewerNetwork = project.projectType === 'sewer_network'
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
 
-      {/* Project header */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 mb-6">
+      {/* ── Project Header ──────────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-xl font-bold text-black dark:text-white tracking-[-0.4px]">{project.name}</h1>
               <StatusBadge status={project.status} />
+              <span className="text-[11px] text-[#6B7280] dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                {PROJECT_TYPE_LABELS[project.projectType]}
+              </span>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#6B7280] dark:text-gray-400">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#6B7280] dark:text-gray-400 mb-2">
               {project.client     && <span>👤 {project.client}</span>}
               {project.contractor && <span>🏗 {project.contractor}</span>}
+              {project.consultant && <span>📐 {project.consultant}</span>}
               {project.location   && <span>📍 {project.location}</span>}
-              <span>🏷 {PROJECT_TYPE_LABELS[project.projectType]}</span>
             </div>
             {project.contractStartDate && project.contractEndDate && (
-              <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-2">
-                {project.contractStartDate} → {project.contractEndDate}
+              <p className="text-[12px] text-[#6B7280] dark:text-gray-400">
+                📅 {project.contractStartDate} → {project.contractEndDate}
                 {days !== null && (
                   <span className={`ml-2 font-semibold ${days < 0 ? 'text-red-500' : days < 30 ? 'text-orange-500' : 'text-[#6B7280] dark:text-gray-400'}`}>
                     ({days >= 0 ? `${fmtN(days)} days left` : `${fmtN(Math.abs(days))} days overdue`})
@@ -288,9 +335,8 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                 )}
               </p>
             )}
-            {project.description && <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-2">{project.description}</p>}
+            {project.description && <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-1">{project.description}</p>}
           </div>
-
           <div className="flex items-center gap-2 flex-shrink-0">
             {canEdit && (
               <>
@@ -299,7 +345,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                   Edit
                 </button>
                 <button onClick={handleDelete} disabled={deleting}
-                  className="text-sm font-semibold text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors">
+                  className="text-sm font-semibold text-red-500 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors">
                   {deleting ? 'Deleting…' : 'Delete'}
                 </button>
               </>
@@ -314,82 +360,186 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Contract Value"   value={formatCurrency(project.contractValue, project.currency)} sub={project.currency} />
-        <KpiCard label="Network Length"   value={formatLength(project.totalNetworkLength)} sub={`Executed: ${formatLength(project.executedLength || 0)}`} />
-        <KpiCard label="Overall Progress" value={`${project.completionPct || 0}%`} sub={`${fmtN(zones.length)} zones`}
-          accent={project.completionPct >= 80 ? '#22c55e' : project.completionPct >= 40 ? '#f97316' : '#2563FF'} />
+      {/* ── KPI Row ─────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard label="Contract Value"   icon="💰"
+          value={formatCurrency(project.contractValue, project.currency)} sub={project.currency} />
+        <KpiCard label="Network Length"   icon="📏"
+          value={formatLength(project.totalNetworkLength)}
+          sub={`${totalSegs} segments`} />
+        <KpiCard label="Overall Progress" icon="📊"
+          value={`${projectPct}%`}
+          sub={`${zones.length} zones`}
+          accent={projectPct >= 80 ? '#22c55e' : projectPct >= 40 ? '#f97316' : '#2563FF'} />
+        <KpiCard label="Days Remaining"   icon={days !== null && days < 0 ? '⚠️' : '📅'}
+          value={days !== null ? `${fmtN(Math.abs(days))}` : '—'}
+          sub={days === null ? 'No end date' : days < 0 ? 'Days overdue' : 'Days left'}
+          accent={days !== null && days < 0 ? '#ef4444' : days !== null && days < 30 ? '#f97316' : undefined} />
       </div>
 
+      {/* ── Two-column section ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
-        {/* Zone Progress */}
+        {/* Activity Completion */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Zone Progress</h2>
-            <button onClick={() => router.push(`/projects/${projectId}/zones`)} className="text-[11px] text-[#2563FF] hover:underline">
-              View all →
-            </button>
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Activity Completion</h2>
+            <button onClick={() => router.push(`/projects/${projectId}/progress`)}
+              className="text-[11px] text-[#2563FF] hover:underline">Details →</button>
           </div>
-          <div className="divide-y divide-gray-50 dark:divide-gray-800">
-            {zones.length === 0 ? (
-              <div className="px-6 py-8 text-center">
-                <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No zones yet</p>
-                <button onClick={() => router.push(`/projects/${projectId}/zones`)}
-                  className="text-sm font-semibold text-black dark:text-white hover:underline">
-                  + Add Zone
-                </button>
-              </div>
+          <div className="px-6 py-5 space-y-4">
+            {totalSegs === 0 ? (
+              <p className="text-sm text-[#6B7280] dark:text-gray-400 text-center py-4">No segments yet</p>
             ) : (
-              zones.slice(0, 6).map(zone => (
-                <div key={zone.id} className="px-6 py-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[13px] font-medium text-black dark:text-white">{zone.name}</span>
-                    <span className="text-[12px] font-bold text-black dark:text-white">{zone.completionPct || 0}%</span>
+              actStats.map(act => (
+                <div key={act.key}>
+                  <div className="flex justify-between items-center text-[12px] mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: act.color }} />
+                      <span className="font-medium text-black dark:text-white">{act.label}</span>
+                    </div>
+                    <span className="text-[#6B7280] dark:text-gray-400 text-[11px]">
+                      {act.done}/{totalSegs} · {act.pct}%
+                    </span>
                   </div>
-                  <ProgressBar pct={zone.completionPct || 0} />
-                  <div className="flex gap-4 mt-1.5">
-                    <span className="text-[10px] text-[#6B7280] dark:text-gray-400">{formatLength(zone.executedLength || 0)} executed</span>
-                    <span className="text-[10px] text-[#6B7280] dark:text-gray-400">{formatLength(zone.totalLength || 0)} total</span>
-                  </div>
+                  <Bar pct={act.pct} color={act.color} />
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Activity Summary */}
+        {/* Zone Progress */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Activity Breakdown</h2>
-            <button onClick={() => router.push(`/projects/${projectId}/progress`)} className="text-[11px] text-[#2563FF] hover:underline">
-              Details →
-            </button>
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Zone Progress</h2>
+            <button onClick={() => router.push(`/projects/${projectId}/zones`)}
+              className="text-[11px] text-[#2563FF] hover:underline">View all →</button>
           </div>
-          <div className="px-6 py-4 space-y-4">
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {zones.length === 0 ? (
-              <p className="text-sm text-[#6B7280] dark:text-gray-400 text-center py-4">Add zones and segments to see activity breakdown</p>
+              <div className="px-6 py-8 text-center">
+                <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No zones yet</p>
+                <button onClick={() => router.push(`/projects/${projectId}/zones`)}
+                  className="text-sm font-semibold text-black dark:text-white hover:underline">+ Add Zone</button>
+              </div>
             ) : (
-              ACTIVITY_KEYS.map(act => {
-                const pct = project.completionPct || 0
-                return (
-                  <div key={act.key}>
-                    <div className="flex justify-between text-[12px] mb-1.5">
-                      <span className="font-medium text-black dark:text-white">{act.label}</span>
-                      <span className="text-[#6B7280] dark:text-gray-400">{pct}%</span>
+              zoneStats.slice(0, 6).map(zone => (
+                <div key={zone.id} className="px-6 py-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div>
+                      <span className="text-[12px] font-medium text-black dark:text-white">{zone.name}</span>
+                      {zone.type && <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400">{zone.type}</span>}
                     </div>
-                    <ProgressBar pct={pct} color={act.color} />
+                    <div className="text-right">
+                      <span className="text-[12px] font-bold text-black dark:text-white">{zone.avgPct}%</span>
+                      <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400">{zone.segCount} segs</span>
+                    </div>
                   </div>
-                )
-              })
+                  <Bar pct={zone.avgPct} color={zone.avgPct >= 80 ? '#22c55e' : zone.avgPct >= 40 ? '#f97316' : '#2563FF'} />
+                </div>
+              ))
             )}
           </div>
-
         </div>
       </div>
 
-      {/* Edit Modal */}
+      {/* ── Sewer Network Breakdown (conditional) ───────────────────────── */}
+      {isSewerNetwork && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+          <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-5">Sewer Network Breakdown</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { label: 'Gravity',           value: project.gravityLength          || 0, color: '#2563FF' },
+              { label: 'Force Main',         value: project.forcemainLength        || 0, color: '#7C3AED' },
+              { label: 'House Connections',  value: project.houseConnectionsLength || 0, color: '#22c55e' },
+            ].map(item => {
+              const pct = project.totalNetworkLength > 0
+                ? Math.round((item.value / project.totalNetworkLength) * 100) : 0
+              return (
+                <div key={item.label}>
+                  <div className="flex justify-between text-[12px] mb-2">
+                    <span className="font-semibold text-black dark:text-white">{item.label}</span>
+                    <span className="text-[#6B7280] dark:text-gray-400">{formatLength(item.value)} · {pct}%</span>
+                  </div>
+                  <Bar pct={pct} color={item.color} height={8} />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Surface Type + Segment Stats ────────────────────────────────── */}
+      {totalSegs > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* Surface distribution donut */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-5">Surface Distribution</h2>
+            <div className="flex items-center gap-8">
+              <DonutChart size={110} data={[
+                { label: 'Asphalt', value: asphaltSegs, color: '#111827' },
+                { label: 'Dirt',    value: dirtSegs,    color: '#f59e0b' },
+              ]} />
+              <div className="space-y-3">
+                {[
+                  { label: 'Asphalt', count: asphaltSegs, color: '#111827' },
+                  { label: 'Dirt',    count: dirtSegs,    color: '#f59e0b' },
+                ].map(s => (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <span className="inline-block w-3 h-3 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                    <span className="text-[13px] font-semibold text-black dark:text-white">{s.label}</span>
+                    <span className="text-[12px] text-[#6B7280] dark:text-gray-400">
+                      {s.count} seg · {totalSegs > 0 ? Math.round(s.count / totalSegs * 100) : 0}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Segment quick stats */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-5">Segment Summary</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Total Segments',   value: fmtN(totalSegs),                   sub: 'across all zones' },
+                { label: 'Total Length',     value: formatLength(segments.reduce((s, seg) => s + (seg.length || 0), 0)), sub: 'network length' },
+                { label: 'Fully Complete',   value: fmtN(segments.filter(s => (s.overallPct || 0) >= 100).length), sub: 'segments (100%)' },
+                { label: 'Not Started',      value: fmtN(segments.filter(s => (s.overallPct || 0) === 0).length), sub: 'segments (0%)' },
+              ].map(s => (
+                <div key={s.label}>
+                  <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">{s.label}</div>
+                  <div className="text-xl font-bold text-black dark:text-white">{s.value}</div>
+                  <div className="text-[11px] text-[#9CA3AF] dark:text-gray-500">{s.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick Navigation ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Zones',    icon: '🗺️', path: `zones`,    desc: `${zones.length} zones` },
+          { label: 'Segments', icon: '🔧', path: `segments`, desc: `${totalSegs} segments` },
+          { label: 'Progress', icon: '📊', path: `progress`, desc: `${projectPct}% overall` },
+          { label: 'Back',     icon: '←',  path: null,       desc: 'Portfolio' },
+        ].map(nav => (
+          <button
+            key={nav.label}
+            onClick={() => nav.path ? router.push(`/projects/${projectId}/${nav.path}`) : router.push('/dashboard')}
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 text-left hover:border-gray-400 dark:hover:border-gray-600 hover:shadow-sm transition-all group"
+          >
+            <div className="text-xl mb-2">{nav.icon}</div>
+            <div className="text-[13px] font-semibold text-black dark:text-white group-hover:text-[#2563FF] transition-colors">{nav.label}</div>
+            <div className="text-[11px] text-[#6B7280] dark:text-gray-400">{nav.desc}</div>
+          </button>
+        ))}
+      </div>
+
       {editOpen && project && (
         <EditProjectModal
           project={project}
