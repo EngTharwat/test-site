@@ -18,7 +18,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
-      if (pagePerm.zones === 'none') {
+      // Zone metadata is also needed by Segments, Progress and Map views
+      if (pagePerm.zones === 'none' && pagePerm.segments === 'none'
+          && pagePerm.progress === 'none' && pagePerm.map === 'none') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }

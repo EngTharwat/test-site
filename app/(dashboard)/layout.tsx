@@ -229,8 +229,7 @@ function Sidebar({
                 href={`/projects/${projectId}/map`}
                 icon={Icon.Map}
                 label="Map / GIS"
-                active={false}
-                disabled
+                active={is(`/projects/${projectId}/map`)}
               />
             )}
           </>

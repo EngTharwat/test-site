@@ -23,7 +23,8 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
-      if (pagePerm.segments === 'none') {
+      // Allow reading segment geometry for the Map/GIS view too
+      if (pagePerm.segments === 'none' && pagePerm.map === 'none') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
