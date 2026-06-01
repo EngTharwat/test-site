@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import { Segment, Zone, PIPE_MATERIALS, fmtN } from '@/lib/types'
 import type { MappedSegment } from './LeafletMap'
-import { zoneColor } from './LeafletMap'
 
 // Load Leaflet only in the browser (no SSR)
 const LeafletMap = dynamic(() => import('./LeafletMap'), {
@@ -20,6 +19,29 @@ const LeafletMap = dynamic(() => import('./LeafletMap'), {
 })
 
 const filterCls = 'border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500'
+
+// Activities in cascade order, with their colors (matches Progress/Segments)
+const ACTIVITY_DEFS = [
+  { key: 'excavation',  label: 'Excavation',  color: '#ef4444' },
+  { key: 'piping',      label: 'Pipeline',    color: '#2563FF' },
+  { key: 'backfilling', label: 'Backfilling', color: '#eab308' },
+  { key: 'basecourse',  label: 'Base Course', color: '#22c55e' },
+  { key: 'asphalt',     label: 'Asphalt',     color: '#111827' },
+] as const
+const NOT_STARTED = { key: 'none', label: 'Not Started', color: '#9ca3af' }
+
+// Index of the last (furthest) completed activity, -1 if none done.
+function lastActivityIndex(seg: Segment): number {
+  let idx = -1
+  ACTIVITY_DEFS.forEach((a, i) => {
+    if (((seg as any)[a.key]?.pct ?? 0) >= 100) idx = i
+  })
+  return idx
+}
+function lastActivityColor(seg: Segment): string {
+  const i = lastActivityIndex(seg)
+  return i >= 0 ? ACTIVITY_DEFS[i].color : NOT_STARTED.color
+}
 
 export default function MapPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
@@ -72,13 +94,14 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
   // Build mapped segments with zone info
   const allMapped: MappedSegment[] = segments
     .filter(hasCoords)
-    .map((s, i) => {
+    .map((s) => {
       const zone = zoneMap[s.zoneId]
       return {
         ...s,
         zoneName:  zone?.name  ?? '—',
         zoneType:  zone?.type  ?? '',
-        zoneColor: zoneColor(zone?.type ?? '', i),
+        // Line/node color now reflects the segment's last completed activity
+        zoneColor: lastActivityColor(s),
       }
     })
 
@@ -93,9 +116,16 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
 
   const unmapped = segments.filter(s => !hasCoords(s))
 
-  // Zone-type color legend (unique zone types among filtered)
-  const legendEntries = [...new Set(filteredMapped.map(s => s.zoneType).filter(Boolean))]
-    .map(type => ({ type, color: zoneColor(type) }))
+  // Activity legend + per-activity total length (grouped by each segment's
+  // LAST completed activity, so totals sum to the mapped network length).
+  const activitySummary = [...ACTIVITY_DEFS, NOT_STARTED].map((a, i) => {
+    const idx = a.key === 'none' ? -1 : i
+    const segs = filteredMapped.filter(s => lastActivityIndex(s) === idx)
+    const length = segs.reduce((sum, s) => sum + (s.length || 0), 0)
+    return { ...a, count: segs.length, length }
+  })
+  // Only show buckets that actually have segments
+  const legendEntries = activitySummary.filter(a => a.count > 0)
 
   const totalLen = filteredMapped.reduce((s, seg) => s + (seg.length || 0), 0)
 
@@ -206,23 +236,39 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
             />
           )}
 
-          {/* Legend overlay */}
+          {/* Legend — last activity by color */}
           {legendEntries.length > 0 && (
             <div className="absolute bottom-4 left-4 z-[1000] bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg p-3">
-              <div className="text-[9px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-2">Legend</div>
+              <div className="text-[9px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-2">Last Activity</div>
               <div className="space-y-1.5">
                 {legendEntries.map(e => (
-                  <div key={e.type} className="flex items-center gap-2">
+                  <div key={e.key} className="flex items-center gap-2">
                     <div className="w-6 h-1.5 rounded-full flex-shrink-0" style={{ background: e.color }} />
-                    <span className="text-[11px] text-black dark:text-white">{e.type}</span>
+                    <span className="text-[11px] text-black dark:text-white">{e.label}</span>
                   </div>
                 ))}
-                {filteredMapped.filter(s => !s.zoneType).length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-1.5 rounded-full flex-shrink-0 bg-gray-400" />
-                    <span className="text-[11px] text-black dark:text-white">No Type</span>
+              </div>
+            </div>
+          )}
+
+          {/* Summary — total length per activity, aligned with the map */}
+          {filteredMapped.length > 0 && (
+            <div className="absolute top-4 right-4 z-[1000] bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg p-3 min-w-[190px]">
+              <div className="text-[9px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-2">Length by Activity</div>
+              <div className="space-y-1.5">
+                {activitySummary.map(a => (
+                  <div key={a.key} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: a.color }} />
+                    <span className="text-[11px] text-black dark:text-white flex-1">{a.label}</span>
+                    <span className="text-[11px] font-semibold text-[#374151] dark:text-gray-300 tabular-nums">
+                      {fmtN(a.length, 1)} m
+                    </span>
                   </div>
-                )}
+                ))}
+                <div className="flex items-center gap-2 pt-1.5 mt-1 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-[11px] font-bold text-black dark:text-white flex-1">Total</span>
+                  <span className="text-[11px] font-bold text-black dark:text-white tabular-nums">{fmtN(totalLen, 1)} m</span>
+                </div>
               </div>
             </div>
           )}

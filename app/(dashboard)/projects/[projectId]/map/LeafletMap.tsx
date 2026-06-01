@@ -110,7 +110,7 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
   // Live zoom → drives line width & node radius (constant size vs. the map)
   const [zoom, setZoom] = useState(12)
   const lineWeight = weightForZoom(zoom)
-  const nodeRadius = lineWeight * 2   // node diameter tracks the line width
+  const nodeRadius = lineWeight   // node radius matches the line width
 
   const tileUrl = isDark
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
