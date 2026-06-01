@@ -52,11 +52,11 @@ function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
 
 // Convert a zoom level to a pixel weight that represents a constant ground width.
 // Each +1 zoom doubles the map scale, so the pixel width doubles too.
-const BASE_ZOOM = 16   // reference zoom
-const BASE_PX   = 4    // line width (px) at BASE_ZOOM
+const BASE_ZOOM = 16        // reference zoom
+const BASE_PX   = 4 / 3     // line width (px) at BASE_ZOOM — ~1/3 of the old 4px
 function weightForZoom(zoom: number): number {
   const w = BASE_PX * Math.pow(2, zoom - BASE_ZOOM)
-  return Math.max(1, Math.min(w, 140))   // clamp so it never vanishes or overwhelms
+  return Math.max(0.5, Math.min(w, 48))   // clamp so it never vanishes or overwhelms
 }
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
@@ -110,6 +110,7 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
   // Live zoom → drives the real-world-constant line width
   const [zoom, setZoom] = useState(12)
   const lineWeight = weightForZoom(zoom)
+  const nodeRadius = lineWeight * 2   // endpoints are double the line width
 
   const tileUrl = isDark
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
@@ -166,15 +167,18 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
         )
       })}
 
-      {/* Start/end node circles */}
-      {mapped.map(seg => (
-        <CircleMarker
-          key={`node-${seg.id}`}
-          center={[seg.startLat!, seg.startLng!]}
-          radius={4}
-          pathOptions={{ color: seg.zoneColor, fillColor: seg.zoneColor, fillOpacity: 1, weight: 1 }}
-        />
-      ))}
+      {/* Start AND end node circles — scale with zoom, radius = 2× line width */}
+      {mapped.flatMap(seg => {
+        const opacity = selected && selected.id !== seg.id ? 0.4 : 1
+        const opts = {
+          color: seg.zoneColor, fillColor: seg.zoneColor,
+          fillOpacity: opacity, opacity, weight: 1,
+        }
+        return [
+          <CircleMarker key={`start-${seg.id}`} center={[seg.startLat!, seg.startLng!]} radius={nodeRadius} pathOptions={opts} />,
+          <CircleMarker key={`end-${seg.id}`}   center={[seg.endLat!,   seg.endLng!]}   radius={nodeRadius} pathOptions={opts} />,
+        ]
+      })}
     </MapContainer>
   )
 }
