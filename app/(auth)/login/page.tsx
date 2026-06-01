@@ -2,8 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { ThemeToggle } from '@/lib/theme-toggle'
+import { LogoIcon } from '@/lib/logo'
 
 const inputCls = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
 
@@ -86,9 +88,12 @@ function LoginPageInner() {
 
       <div className="w-full max-w-sm">
 
-        {/* Logo */}
+        {/* Logo + wordmark — click to return to the landing page */}
         <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">PMBoards</div>
+          <Link href="/" className="inline-flex items-center justify-center gap-3 text-black dark:text-white mb-1 hover:opacity-80 transition-opacity">
+            <LogoIcon size={36} variant="outline" />
+            <span className="text-[28px] font-bold tracking-[-0.5px]">PMBoards</span>
+          </Link>
           <p className="text-[13px] text-[#6B7280] dark:text-gray-400 mt-1">Sign in to your workspace</p>
         </div>
 
