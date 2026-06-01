@@ -107,7 +107,7 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
         const start: [number, number] = [seg.startLat!, seg.startLng!]
         const end:   [number, number] = [seg.endLat!,   seg.endLng!]
         const color  = seg.zoneColor
-        const weight = selected?.id === seg.id ? 6 : 3
+        const weight = 4   // constant line width regardless of selection
         const opacity = selected && selected.id !== seg.id ? 0.4 : 1
 
         return (
