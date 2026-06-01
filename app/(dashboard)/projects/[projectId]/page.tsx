@@ -1,10 +1,36 @@
 'use client'
 
 import { useState, useEffect, useCallback, use } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
+import type { MappedSegment } from './map/LeafletMap'
+
+// Embed the Leaflet map (browser-only)
+const LeafletMap = dynamic(() => import('./map/LeafletMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+      <span className="text-[#6B7280] dark:text-gray-400 text-sm animate-pulse">Loading map…</span>
+    </div>
+  ),
+})
+
+// Activity colors for the embedded map's last-activity coloring
+const OV_ACTIVITIES = [
+  { key: 'excavation',  color: '#ef4444' },
+  { key: 'piping',      color: '#2563FF' },
+  { key: 'backfilling', color: '#eab308' },
+  { key: 'basecourse',  color: '#22c55e' },
+  { key: 'asphalt',     color: '#111827' },
+] as const
+function lastActivityColorOV(seg: Segment): string {
+  let idx = -1
+  OV_ACTIVITIES.forEach((a, i) => { if (((seg as any)[a.key]?.pct ?? 0) >= 100) idx = i })
+  return idx >= 0 ? OV_ACTIVITIES[idx].color : '#9ca3af'
+}
 import {
   Project, Zone, Segment,
   ProjectStatus, ProjectType, Currency,
@@ -298,6 +324,16 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Theme for the embedded map tiles
+  const [isDark, setIsDark] = useState(false)
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains('dark'))
+    check()
+    const obs = new MutationObserver(check)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
+  }, [])
+
   const fetchAll = useCallback(async () => {
     try {
       const [proj, zoneData, segData] = await Promise.all([
@@ -362,6 +398,20 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     ;(zonesByType[t] ??= []).push(z)
   })
   const scopeKeys = Object.keys(zonesByType).sort()
+
+  // Segments with GIS coordinates → embedded map
+  const zoneMap = Object.fromEntries(zones.map(z => [z.id, z]))
+  const mappedSegments: MappedSegment[] = segments
+    .filter(s => s.startLat != null && s.startLng != null && s.endLat != null && s.endLng != null)
+    .map(s => {
+      const z = zoneMap[s.zoneId]
+      return {
+        ...s,
+        zoneName:  z?.name ?? '—',
+        zoneType:  z?.type ?? '',
+        zoneColor: lastActivityColorOV(s),
+      }
+    })
 
   // Overall project progress from segments
   const projectPct = totalSegs > 0
@@ -439,6 +489,35 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
           sub={days === null ? 'No end date' : days < 0 ? 'Days overdue' : 'Days left'}
           accent={days !== null && days < 0 ? '#ef4444' : days !== null && days < 30 ? '#f97316' : undefined} />
       </div>
+
+      {/* ── Network Map ──────────────────────────────────────────────────── */}
+      {mappedSegments.length > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+            <div className="flex items-center gap-3">
+              <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Network Map</h2>
+              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">{mappedSegments.length} mapped segments</span>
+            </div>
+            <button onClick={() => router.push(`/projects/${projectId}/map`)}
+              className="text-[11px] text-[#2563FF] hover:underline">Open full map →</button>
+          </div>
+          <div className="relative" style={{ height: 380 }}>
+            <LeafletMap mapped={mappedSegments} isDark={isDark} onSelect={() => {}} selected={null} fitNonce={0} />
+            {/* Activity color legend */}
+            <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-gray-900/95 rounded-lg border border-gray-200 dark:border-gray-700 shadow px-3 py-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {[...OV_ACTIVITIES.map((a, i) => ({ label: ACTIVITY_KEYS[i].label, color: a.color })),
+                  { label: 'Not Started', color: '#9ca3af' }].map(e => (
+                  <div key={e.label} className="flex items-center gap-1.5">
+                    <span className="inline-block w-4 h-1 rounded-full" style={{ background: e.color }} />
+                    <span className="text-[10px] text-black dark:text-white">{e.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Two-column section ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

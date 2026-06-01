@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
@@ -58,6 +58,11 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
   const [zones,    setZones]    = useState<Zone[]>([])
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState<string | null>(null)
+
+  // Progress import
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importing,    setImporting]    = useState(false)
+  const [importResult, setImportResult] = useState<{ ok: number; fail: number; skipped: number } | null>(null)
 
   // Filters
   const [fZone,     setFZone]     = useState('')
@@ -136,6 +141,93 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
     }
   }
 
+  // ── Export progress to Excel (TRUE/FALSE per activity) ──────────────────────
+  async function exportProgress() {
+    const XLSX = await import('xlsx')
+    const headers = ['ID','Zone','Line','From','To','Length (m)',
+                     ...ACTIVITIES.map(a => a.label)]
+    const rows = sorted.map(s => {
+      const z = zoneMap[s.zoneId]
+      return [
+        s.id,
+        z ? `${z.name}${z.type ? ` — ${z.type}` : ''}` : '',
+        s.lineNumber ?? '', s.fromMH ?? '', s.toMH ?? '', s.length ?? 0,
+        ...ACTIVITIES.map(a => isDone(s, a.key) ? 'TRUE' : 'FALSE'),
+      ]
+    })
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    ws['!cols'] = [{wch:24},{wch:26},{wch:10},{wch:10},{wch:10},{wch:10},
+                   ...ACTIVITIES.map(() => ({ wch: 13 }))]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Progress')
+    // Guide sheet
+    const guide = XLSX.utils.aoa_to_sheet([
+      ['How to use'],
+      ['1. Set each activity cell to TRUE (done) or FALSE (not done).'],
+      ['2. Accepted truthy values: TRUE, 1, yes, y, x, done.'],
+      ['3. Keep the ID column unchanged so rows match existing segments.'],
+      ['4. Save, then use "Import Progress" to apply.'],
+    ])
+    guide['!cols'] = [{ wch: 70 }]
+    XLSX.utils.book_append_sheet(wb, guide, 'Instructions')
+    XLSX.writeFile(wb, `pmboards-progress-${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
+  // ── Import progress from Excel ──────────────────────────────────────────────
+  const truthy = (v: any) => /^(true|1|yes|y|x|done|✓)$/i.test(String(v).trim())
+
+  async function handleProgressFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImporting(true)
+    setImportResult(null)
+    const XLSX = await import('xlsx')
+    const byId = new Map(segments.map(s => [s.id, s]))
+
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const wb   = XLSX.read(ev.target!.result, { type: 'binary' })
+      const ws   = wb.Sheets[wb.SheetNames[0]]
+      const grid = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
+      if (grid.length < 2) { setImporting(false); return }
+
+      const [hdr, ...dataRows] = grid
+      const idCol = hdr.findIndex((_: any, i: number) => /\bid\b/i.test(String(hdr[i])))
+      const actCols = ACTIVITIES.map(a =>
+        hdr.findIndex((_: any, i: number) => String(hdr[i]).trim().toLowerCase() === a.label.toLowerCase()))
+
+      let ok = 0, fail = 0, skipped = 0
+      for (const row of dataRows) {
+        const id = idCol >= 0 ? String(row[idCol] ?? '').trim() : ''
+        const seg = byId.get(id)
+        if (!seg) { if (row.some((c: any) => String(c).trim())) skipped++; continue }
+
+        // Read each activity flag from the sheet
+        const flags = ACTIVITIES.map((_, i) => actCols[i] >= 0 ? truthy(row[actCols[i]]) : isDone(seg, ACTIVITIES[i].key))
+        const updates: Record<string, unknown> = {}
+        ACTIVITIES.forEach((a, i) => {
+          updates[a.key] = {
+            plannedQty: seg.length, actualQty: flags[i] ? seg.length : 0,
+            pct: flags[i] ? 100 : 0, status: flags[i] ? 'completed' : 'not_started',
+          }
+        })
+        const done = flags.filter(Boolean).length
+        updates.overallPct = Math.round(done / ACTIVITIES.length * 100)
+        updates.status = done === ACTIVITIES.length ? 'completed' : done > 0 ? 'in_progress' : 'not_started'
+
+        try {
+          const updated = await api.patch(`/api/projects/${projectId}/segments/${seg.id}`, updates)
+          setSegments(prev => prev.map(s => s.id === seg.id ? updated : s))
+          ok++
+        } catch { fail++ }
+      }
+      setImportResult({ ok, fail, skipped })
+      setImporting(false)
+    }
+    reader.readAsBinaryString(file)
+  }
+
   if (loading) return (
     <div className="p-8 space-y-3">
       {[1,2,3,4].map(i => <div key={i} className="h-10 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />)}
@@ -147,15 +239,40 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
 
       {/* Header */}
       <div className="mb-6">
-        <button onClick={() => router.push(`/projects/${projectId}`)}
-          className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-1 flex items-center gap-1 transition-colors">
-          ← Overview
-        </button>
-        <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Progress Tracking</h1>
-        <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">
-          Construction activity progress per segment
-          {!canEdit && <span className="ml-2 text-[11px] text-orange-500">(view only)</span>}
-        </p>
+        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleProgressFile} />
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <button onClick={() => router.push(`/projects/${projectId}`)}
+              className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-1 flex items-center gap-1 transition-colors">
+              ← Overview
+            </button>
+            <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Progress Tracking</h1>
+            <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">
+              Construction activity progress per segment
+              {!canEdit && <span className="ml-2 text-[11px] text-orange-500">(view only)</span>}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={exportProgress} disabled={segments.length === 0}
+              className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
+              title="Download progress as Excel to fill in">
+              ⬇ Export
+            </button>
+            {canEdit && (
+              <button onClick={() => fileInputRef.current?.click()} disabled={importing}
+                className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50 transition-colors"
+                title="Import progress from Excel (matches by ID)">
+                {importing ? 'Importing…' : '↑ Import Progress'}
+              </button>
+            )}
+          </div>
+        </div>
+        {importResult && (
+          <div className="mt-3 text-[12px] px-3 py-2 rounded-lg bg-[#F3F4F6] dark:bg-gray-800 text-[#374151] dark:text-gray-300">
+            ✓ Imported: <b>{importResult.ok}</b> updated · {importResult.fail} failed · {importResult.skipped} skipped (ID not found)
+            <button onClick={() => setImportResult(null)} className="ml-3 text-[#9CA3AF] hover:text-black dark:hover:text-white">✕</button>
+          </div>
+        )}
       </div>
 
       {/* Filter bar */}

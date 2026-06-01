@@ -12,11 +12,13 @@ const filterCls = 'border border-gray-200 dark:border-gray-700 rounded-lg px-2.5
 
 // ── Bulk row type ─────────────────────────────────────────────────────────────
 interface BulkRow {
-  rowNum: number; zoneName: string; zoneId: string | null
+  rowNum: number; id: string; zoneName: string; zoneId: string | null
   lineNumber: string; fromMH: string; toMH: string
   diameter: number; length: number; material: string
+  basecourseThickness: number; asphaltThickness: number
   startLat: number | null; startLng: number | null
   endLat: number | null; endLng: number | null
+  isUpdate: boolean   // true when the ID matches an existing segment
   error?: string
 }
 
@@ -129,38 +131,54 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     return map
   }
 
+  // Column headers shared by the template and the export
+  const SEG_HEADERS = ['ID','Zone','Line No.','From MH','To MH','Diameter (mm)','Length (m)','Material',
+                       'Basecoarse Thickness','Asphalt Thickness','Start Lat','Start Long','End Lat','End Long']
+  const SEG_COLW = [{wch:24},{wch:28},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:18},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12}]
+
+  function appendReferenceSheets(XLSX: any, wb: any) {
+    const zonesWs = XLSX.utils.aoa_to_sheet([['Zone (copy exact value into Zone column)'], ...zones.map(z => [zoneLabel(z)])])
+    zonesWs['!cols'] = [{ wch: 40 }]
+    XLSX.utils.book_append_sheet(wb, zonesWs, 'Zones Reference')
+    const matWs = XLSX.utils.aoa_to_sheet([['Material (copy exact value into Material column)'], ...PIPE_MATERIALS.map(m => [m])])
+    matWs['!cols'] = [{ wch: 40 }]
+    XLSX.utils.book_append_sheet(wb, matWs, 'Material Reference')
+  }
+
+  // Blank template — leave ID empty for new rows
   async function downloadTemplate() {
     const XLSX = await import('xlsx')
-    const headers = ['Zone','Line No.','From MH','To MH','Diameter (mm)','Length (m)','Material',
-                     'Start Lat','Start Long','End Lat','End Long']
     const example = zones.length > 0
-      ? [zoneLabel(zones[0]),'L-001','MH-01','MH-02','300','45.5','uPVC','','','','']
-      : ['Zone A — Gravity','L-001','MH-01','MH-02','300','45.5','uPVC','','','','']
-
-    const ws = XLSX.utils.aoa_to_sheet([headers, example])
-    ws['!cols'] = [{wch:28},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12}]
-
-    // Zones reference sheet
-    const zonesData = [
-      ['Zone (copy exact value into Zone column)'],
-      ...zones.map(z => [zoneLabel(z)]),
-    ]
-    const zonesWs = XLSX.utils.aoa_to_sheet(zonesData)
-    zonesWs['!cols'] = [{wch: 40}]
-
-    // Material reference sheet
-    const matData = [
-      ['Material (copy exact value into Material column)'],
-      ...PIPE_MATERIALS.map(m => [m]),
-    ]
-    const matWs = XLSX.utils.aoa_to_sheet(matData)
-    matWs['!cols'] = [{wch: 40}]
-
+      ? ['', zoneLabel(zones[0]),'L-001','MH-01','MH-02','300','45.5','uPVC','0','0','','','','']
+      : ['', 'Zone A — Gravity','L-001','MH-01','MH-02','300','45.5','uPVC','0','0','','','','']
+    const ws = XLSX.utils.aoa_to_sheet([SEG_HEADERS, example])
+    ws['!cols'] = SEG_COLW
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Segments')
-    XLSX.utils.book_append_sheet(wb, zonesWs, 'Zones Reference')
-    XLSX.utils.book_append_sheet(wb, matWs, 'Material Reference')
+    appendReferenceSheets(XLSX, wb)
     XLSX.writeFile(wb, 'pmboards-segments-template.xlsx')
+  }
+
+  // Export existing segments (with their IDs) so they can be edited & re-imported
+  async function exportSegments() {
+    const XLSX = await import('xlsx')
+    const rows = displayed.map(s => {
+      const z = zoneMap[s.zoneId]
+      return [
+        s.id,
+        z ? zoneLabel(z) : '',
+        s.lineNumber ?? '', s.fromMH ?? '', s.toMH ?? '',
+        s.diameter ?? 0, s.length ?? 0, s.material ?? 'uPVC',
+        s.basecourseThickness ?? 0, s.asphaltThickness ?? 0,
+        s.startLat ?? '', s.startLng ?? '', s.endLat ?? '', s.endLng ?? '',
+      ]
+    })
+    const ws = XLSX.utils.aoa_to_sheet([SEG_HEADERS, ...rows])
+    ws['!cols'] = SEG_COLW
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Segments')
+    appendReferenceSheets(XLSX, wb)
+    XLSX.writeFile(wb, `pmboards-segments-${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -179,6 +197,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
 
       const [headerRow, ...dataRows] = rows
       const col = {
+        id:       headerRow.findIndex((_: any, i: number) => /\bid\b/i.test(String(headerRow[i]))),
         zone:     headerRow.findIndex((_: any, i: number) => /zone/i.test(String(headerRow[i]))),
         line:     headerRow.findIndex((_: any, i: number) => /line/i.test(String(headerRow[i]))),
         from:     headerRow.findIndex((_: any, i: number) => /from/i.test(String(headerRow[i]))),
@@ -186,25 +205,34 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         diameter: headerRow.findIndex((_: any, i: number) => /diam/i.test(String(headerRow[i]))),
         length:   headerRow.findIndex((_: any, i: number) => /length/i.test(String(headerRow[i]))),
         material: headerRow.findIndex((_: any, i: number) => /material/i.test(String(headerRow[i]))),
+        bcThk:    headerRow.findIndex((_: any, i: number) => /base ?co?a?rse/i.test(String(headerRow[i]))),
+        aspThk:   headerRow.findIndex((_: any, i: number) => /asphalt.*thick/i.test(String(headerRow[i]))),
         sLat:     headerRow.findIndex((_: any, i: number) => /start.?lat/i.test(String(headerRow[i]))),
         sLng:     headerRow.findIndex((_: any, i: number) => /start.?l(o|ng)/i.test(String(headerRow[i]))),
         eLat:     headerRow.findIndex((_: any, i: number) => /end.?lat/i.test(String(headerRow[i]))),
         eLng:     headerRow.findIndex((_: any, i: number) => /end.?l(o|ng)/i.test(String(headerRow[i]))),
       }
+      const existingIds = new Set(segments.map(s => s.id))
+
+      const num = (row: any[], i: number) => i >= 0 && String(row[i]).trim() ? parseFloat(String(row[i])) || null : null
 
       const parsed: BulkRow[] = dataRows
         .filter(row => row.some((c: any) => String(c).trim()))
         .map((row, idx) => {
+          const id       = col.id >= 0 ? String(row[col.id] ?? '').trim() : ''
           const zoneName = String(row[col.zone] ?? '').trim()
           const zone     = lookup.get(zoneName.toLowerCase())
           const length   = parseFloat(String(row[col.length] ?? '')) || 0
+          const isUpdate = !!id && existingIds.has(id)
           const errors: string[] = []
+          if (id && !existingIds.has(id)) errors.push(`ID "${id}" not found`)
           if (!zoneName)   errors.push('Zone required')
           else if (!zone)  errors.push(`Zone "${zoneName}" not found`)
           if (length <= 0) errors.push('Length must be > 0')
           const mat = String(row[col.material] ?? 'uPVC').trim()
           return {
             rowNum:     idx + 2,
+            id,
             zoneName,
             zoneId:     zone?.id ?? null,
             lineNumber: String(row[col.line]     ?? '').trim(),
@@ -213,10 +241,13 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
             diameter:   parseFloat(String(row[col.diameter] ?? '')) || 0,
             length,
             material:   PIPE_MATERIALS.includes(mat as any) ? mat : 'uPVC',
-            startLat:   col.sLat >= 0 && String(row[col.sLat]).trim() ? parseFloat(String(row[col.sLat])) || null : null,
-            startLng:   col.sLng >= 0 && String(row[col.sLng]).trim() ? parseFloat(String(row[col.sLng])) || null : null,
-            endLat:     col.eLat >= 0 && String(row[col.eLat]).trim() ? parseFloat(String(row[col.eLat])) || null : null,
-            endLng:     col.eLng >= 0 && String(row[col.eLng]).trim() ? parseFloat(String(row[col.eLng])) || null : null,
+            basecourseThickness: num(row, col.bcThk)  ?? 0,
+            asphaltThickness:    num(row, col.aspThk) ?? 0,
+            startLat:   num(row, col.sLat),
+            startLng:   num(row, col.sLng),
+            endLat:     num(row, col.eLat),
+            endLng:     num(row, col.eLng),
+            isUpdate,
             error:      errors.join('; ') || undefined,
           }
         })
@@ -232,19 +263,28 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     setBulkSaving(true)
     let ok = 0, fail = 0
     for (const row of valid) {
-      const defaultAct = (qty: number) => ({ plannedQty: qty, actualQty: 0, pct: 0, status: 'not_started' })
+      const surfaceType = row.asphaltThickness > 0 ? 'asphalt' : 'dirt'
+      const base = {
+        zoneId: row.zoneId!, lineNumber: row.lineNumber, fromMH: row.fromMH, toMH: row.toMH,
+        diameter: row.diameter, length: row.length, material: row.material,
+        basecourseThickness: row.basecourseThickness, asphaltThickness: row.asphaltThickness, surfaceType,
+        startLat: row.startLat, startLng: row.startLng, endLat: row.endLat, endLng: row.endLng,
+      }
       try {
-        const seg = await api.post(`/api/projects/${projectId}/segments`, {
-          zoneId: row.zoneId!, lineNumber: row.lineNumber, fromMH: row.fromMH, toMH: row.toMH,
-          diameter: row.diameter, length: row.length, material: row.material,
-          basecourseThickness: 0, asphaltThickness: 0,
-          startLat: row.startLat, startLng: row.startLng,
-          endLat: row.endLat,   endLng: row.endLng,
-          excavation: defaultAct(row.length), piping: defaultAct(row.length),
-          backfilling: defaultAct(row.length), basecourse: defaultAct(row.length),
-          asphalt: defaultAct(row.length), overallPct: 0, status: 'not_started',
-        })
-        setSegments(prev => [seg, ...prev])
+        if (row.isUpdate) {
+          // Update existing segment (structural fields only)
+          const updated = await api.patch(`/api/projects/${projectId}/segments/${row.id}`, base)
+          setSegments(prev => prev.map(s => s.id === row.id ? updated : s))
+        } else {
+          const defaultAct = (qty: number) => ({ plannedQty: qty, actualQty: 0, pct: 0, status: 'not_started' })
+          const seg = await api.post(`/api/projects/${projectId}/segments`, {
+            ...base,
+            excavation: defaultAct(row.length), piping: defaultAct(row.length),
+            backfilling: defaultAct(row.length), basecourse: defaultAct(row.length),
+            asphalt: defaultAct(row.length), overallPct: 0, status: 'not_started',
+          })
+          setSegments(prev => [seg, ...prev])
+        }
         ok++
       } catch { fail++ }
     }
@@ -351,9 +391,15 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               ↓ Template
             </button>
+            <button onClick={exportSegments} disabled={segments.length === 0}
+              className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
+              title="Download current segments to edit in Excel">
+              ⬇ Export
+            </button>
             <button onClick={() => fileInputRef.current?.click()}
-              className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
-              ↑ Bulk Upload
+              className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+              title="Import .xlsx — rows with an ID update, blank-ID rows are added">
+              ↑ Import
             </button>
             <button onClick={() => { setForm(emptyForm); setEditSegment(null); setShowForm(v => !v) }}
               className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
@@ -496,7 +542,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               <div>
                 <h2 className="text-[15px] font-bold text-black dark:text-white">Bulk Upload Preview</h2>
                 <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-0.5">
-                  {validBulkCount} valid · {bulkRows.length - validBulkCount} with errors
+                  {bulkRows.filter(r => !r.error && r.isUpdate).length} update · {bulkRows.filter(r => !r.error && !r.isUpdate).length} add · {bulkRows.length - validBulkCount} error
                 </p>
               </div>
               <button onClick={() => { setShowBulk(false); setBulkRows([]); setBulkResult(null) }}
@@ -514,7 +560,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                   <table className="w-full text-[11px]">
                     <thead className="sticky top-0 bg-[#F3F4F6] dark:bg-gray-800">
                       <tr>
-                        {['Row','Zone','Line','From','To','Ø mm','Length m','Material','Status'].map(h => (
+                        {['Row','Action','Zone','Line','From','To','Ø mm','Length m','Material','Status'].map(h => (
                           <th key={h} className="text-left px-3 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -523,6 +569,11 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                       {bulkRows.map(row => (
                         <tr key={row.rowNum} className={row.error ? 'bg-red-50 dark:bg-red-950/20' : ''}>
                           <td className="px-3 py-2 text-[#6B7280]">{row.rowNum}</td>
+                          <td className="px-3 py-2">
+                            {row.isUpdate
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Update</span>
+                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">Add</span>}
+                          </td>
                           <td className="px-3 py-2 font-medium text-black dark:text-white max-w-[160px] truncate">{row.zoneName || '—'}</td>
                           <td className="px-3 py-2">{row.lineNumber || '—'}</td>
                           <td className="px-3 py-2">{row.fromMH || '—'}</td>
