@@ -112,19 +112,20 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
   const lineWeight = weightForZoom(zoom)
   const nodeRadius = lineWeight * 2   // endpoints are double the line width
 
-  const tileUrl = isDark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-
-  const tileAttrib = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  // Esri Dark Gray Canvas (base + reference labels). Esri tiles use {z}/{y}/{x}.
+  const esriBase  = 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+  const esriRef   = 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+  const esriAttr  = 'Tiles &copy; Esri &mdash; Esri, DeLorme, HERE'
 
   return (
     <MapContainer
       center={defaultCenter}
       zoom={12}
-      style={{ width: '100%', height: '100%', background: isDark ? '#1a1a2e' : '#e8f4f8' }}
+      maxZoom={16}
+      style={{ width: '100%', height: '100%', background: '#2b2b2b' }}
     >
-      <TileLayer url={tileUrl} attribution={tileAttrib} />
+      <TileLayer url={esriBase} attribution={esriAttr} maxZoom={16} />
+      <TileLayer url={esriRef}  maxZoom={16} />
       <ZoomWatcher onZoom={setZoom} />
       {mapped.length > 0 && <FitBounds mapped={mapped} />}
 
