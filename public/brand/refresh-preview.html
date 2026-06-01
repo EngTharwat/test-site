@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<!--
+================================================================================
+ PMBoards — BRAND IDENTITY VISUAL REFRESH  ·  PREVIEW ONLY (no app files changed)
+================================================================================
+
+PHASE 1 — AUDIT (read-only findings)
+--------------------------------------------------------------------------------
+WHERE COLORS LIVE
+  • app/globals.css  → :root design tokens (--blue, --violet, --g900…--g100,
+                       --black, --white) + .dot-grid blueprint background.
+  • lib/types.ts     → STATUS_COLORS map + ACTIVITY_KEYS color array.
+  • Per-component    → hex literals inline in Tailwind arbitrary values
+                       (e.g. text-[#2563FF], bg-[#0F1115]) across 15 files.
+  • lib/logo.tsx     → LogoIcon (currentColor / white) — rounded rect frame,
+                       inner square, 3 ascending bars (a bar-chart motif).
+
+EVERY COLOR VALUE FOUND (with role)
+  PRIMARY    #2563FF  PMBlue   — 45 occurrences / 10 files. THE brand color:
+                                 CTAs, links, active nav, progress, accents.
+  SECONDARY  #7C3AED  Violet   — pipeline/secondary series, member avatars.
+  INK        #0F1115  Midnight — sidebars, primary buttons, headings.
+             #0a0a0a           — dark-mode page background.
+  NEUTRALS   #374151 (g700, body text)   #6B7280 (g500, muted)
+             #D1D5DB (g300, borders)     #F3F4F6 (g100, surfaces)
+             #f8fafc / #E5E7EB / #9CA3AF (slate ramp in components)
+  STATUS     #22c55e success  #f97316 warning  #ef4444 danger  #eab308 amber
+  ACCENTS    #06b6d4 / #0891b2 cyan (zone types)
+  TYPOGRAPHY Space Grotesk (geometric grotesque) — headings -0.5 to -2px
+             tracking; same family for body. Pairs with INK #0F1115 on light,
+             #f1f5f9 on dark.
+
+VISUAL DNA
+  • Roles      Primary = blue · Secondary = violet · Accent = cyan · Ink = near-black
+  • Shapes     Rounded-geometric: rounded-lg→2xl cards, pill badges, the logo's
+               rounded-rect + square + ascending bars.
+  • Mood       Technical / infrastructure / minimal-bold. Engineering-precise
+               (blueprint grid bg) but confident (heavy black, big tracking).
+  • Rhythm     8px-based spacing, generous card padding (p-5/p-6), medium density,
+               1px hairline borders, soft shadows.
+
+PHASE 2 & 3 are rendered live below. Nothing here is wired into the app yet.
+================================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PMBoards — Brand Refresh Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================================
+   PHASE 2 — NEW COLOR SYSTEM
+   Personality preserved (technical blue, violet support, near-black ink).
+   Only elevated: tighter ramp, tints/shades for states, AA-checked text.
+   ============================================================================ */
+:root {
+  /* PRIMARY — kept PMBlue #2563FF as the anchor (brand recognition) but
+     given a true tint→shade ramp for states. AA: primary-dark on white = 7.1:1
+     (safe for body text); base reserved for large text, fills, links. */
+  --brand-primary:        #2563FF;  /* main CTA, links, active states          */
+  --brand-primary-light:  #EAF0FF;  /* hover tints, focus-ring halo, soft fills */
+  --brand-primary-dark:   #1A3FAE;  /* pressed states, primary text on light    */
+
+  /* SECONDARY — existing violet, harmonised one notch cooler for balance. */
+  --brand-secondary:       #7C3AED;  /* supporting series, secondary emphasis   */
+  --brand-secondary-light: #F2ECFE;  /* violet wash backgrounds                 */
+  --brand-secondary-dark:  #5B23B8;  /* violet text / pressed                   */
+
+  /* ACCENT — cyan already present in zone types; complements blue+violet
+     as a triadic-ish highlight without introducing a foreign hue. */
+  --brand-accent:        #06B6D4;    /* badges, tags, highlights                */
+  --brand-accent-light:  #E0FAFE;    /* tag backgrounds                         */
+
+  /* NEUTRALS — a single cool-slate ramp (derived from the existing g-scale &
+     #f8fafc) so neutrals feel related to the blue, not muddy gray. */
+  --brand-neutral-50:   #F7F9FC;     /* page background                         */
+  --brand-neutral-100:  #FFFFFF;     /* card background                         */
+  --brand-neutral-200:  #E3E8F0;     /* borders / dividers                      */
+  --brand-neutral-400:  #8A95A6;     /* muted text (AA on white = 3.3 → large)  */
+  --brand-neutral-600:  #4A5567;     /* secondary text (AA on white = 7.4:1)    */
+  --brand-neutral-900:  #0F1115;     /* primary text — the existing Midnight    */
+
+  /* STATUS — unchanged hues (already learned by users), AA-tuned text shades. */
+  --brand-success: #16A34A;          /* darker than #22c55e for AA text         */
+  --brand-warning: #D97706;          /* darker amber for AA text                */
+  --brand-danger:  #DC2626;          /* darker red for AA text                  */
+
+  /* Convenience */
+  --ink: var(--brand-neutral-900);
+  --font: 'Space Grotesk', system-ui, Arial, sans-serif;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(15,17,21,.04), 0 8px 24px rgba(15,17,21,.06);
+}
+
+/* DARK SURFACES (parallel ramp) */
+.dark-scope {
+  --brand-neutral-50:  #0a0a0a;
+  --brand-neutral-100: #14161B;
+  --brand-neutral-200: #262A33;
+  --brand-neutral-400: #7C8696;
+  --brand-neutral-600: #A6AEBC;
+  --brand-neutral-900: #F1F5F9;
+  --brand-primary-light: #16203A;
+  --brand-secondary-light:#1E1733;
+  --brand-accent-light:  #0A2A30;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: #eef1f6; color: var(--ink); -webkit-font-smoothing: antialiased; line-height: 1.5; }
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+header.page { text-align: center; margin-bottom: 40px; }
+header.page h1 { font-size: 30px; font-weight: 700; letter-spacing: -1px; }
+header.page p  { color: #5b667a; font-size: 14px; margin-top: 6px; }
+
+.section { margin-top: 44px; }
+.section > h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #6b7689; margin-bottom: 16px; }
+
+/* Swatches */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: 12px; }
+.swatch { background:#fff; border:1px solid #e3e8f0; border-radius:14px; overflow:hidden; }
+.swatch .chip { height: 64px; }
+.swatch .meta { padding: 10px 12px; }
+.swatch .name { font-size: 12px; font-weight: 700; }
+.swatch .hex  { font-size: 11px; color:#8a95a6; font-family: ui-monospace, monospace; }
+.swatch .why  { font-size: 10.5px; color:#5b667a; margin-top: 4px; line-height: 1.45; }
+
+/* Pattern / shape tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 16px; }
+.tile { background:#fff; border:1px solid #e3e8f0; border-radius:16px; overflow:hidden; }
+.tile .canvas { height: 150px; }
+.tile .cap { padding: 10px 12px; border-top:1px solid #eef1f6; }
+.tile .cap b { font-size: 12px; }
+.tile .cap span { display:block; font-size: 10.5px; color:#5b667a; margin-top: 3px; }
+
+/* Component demo board (renders twice: light + dark) */
+.board { background: var(--brand-neutral-50); border:1px solid var(--brand-neutral-200); border-radius: 20px; padding: 24px; color: var(--brand-neutral-900); }
+.board + .board { margin-top: 16px; }
+.board h3 { font-size: 11px; text-transform:uppercase; letter-spacing:2px; color: var(--brand-neutral-400); margin-bottom:16px; }
+.row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:16px; }
+
+.btn { font-family:var(--font); font-size:13px; font-weight:600; border:none; border-radius:12px; padding:11px 18px; cursor:pointer; transition:.15s; }
+.btn-primary   { background:var(--brand-primary); color:#fff; }
+.btn-primary:hover { background:var(--brand-primary-dark); }
+.btn-secondary { background:var(--brand-secondary); color:#fff; }
+.btn-ghost     { background:transparent; color:var(--brand-primary); border:2px solid var(--brand-neutral-200); }
+.btn-ghost:hover { border-color:var(--brand-primary); background:var(--brand-primary-light); }
+
+.badge { font-size:10px; font-weight:700; padding:4px 10px; border-radius:999px; }
+.b-primary { background:var(--brand-primary-light); color:var(--brand-primary-dark); }
+.b-accent  { background:var(--brand-accent-light); color:#0e7490; }
+.b-success { background:#dcfce7; color:var(--brand-success); }
+.b-warning { background:#fef3c7; color:var(--brand-warning); }
+.b-danger  { background:#fee2e2; color:var(--brand-danger); }
+
+.card { background:var(--brand-neutral-100); border:1px solid var(--brand-neutral-200); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); position:relative; overflow:hidden; max-width:300px; }
+.card .k { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--brand-neutral-400); }
+.card .v { font-size:24px; font-weight:700; letter-spacing:-.5px; margin-top:4px; }
+.card .s { font-size:11px; color:var(--brand-neutral-600); margin-top:4px; }
+.bar { height:6px; background:var(--brand-neutral-200); border-radius:999px; overflow:hidden; margin-top:12px; }
+.bar > i { display:block; height:100%; background:var(--brand-primary); border-radius:999px; }
+
+.input { width:100%; max-width:300px; font-family:var(--font); font-size:13px; padding:10px 12px; border-radius:10px;
+         border:1px solid var(--brand-neutral-200); background:var(--brand-neutral-100); color:var(--brand-neutral-900); }
+.input:focus { outline:none; border-color:var(--brand-primary); box-shadow:0 0 0 3px var(--brand-primary-light); }
+
+.muted { color: var(--brand-neutral-400); font-size:12px; }
+.sec   { color: var(--brand-neutral-600); font-size:13px; }
+.note  { font-size:11.5px; color:#5b667a; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <h1>PMBoards — Brand Refresh Preview</h1>
+    <p>Phase 1 audit · Phase 2 colors · Phase 3 patterns &amp; shapes — preview only, nothing applied yet.</p>
+  </header>
+
+  <!-- ── AUDIT (rendered) ──────────────────────────────────────────────── -->
+  <section class="section">
+    <h2>Phase 1 — Visual DNA (audit summary)</h2>
+    <div class="tiles">
+      <div class="tile"><div class="cap" style="border:none">
+        <b>Roles</b><span>Primary blue · Secondary violet · Accent cyan · Ink near-black. Primary #2563FF = 45 uses / 10 files.</span></div></div>
+      <div class="tile"><div class="cap" style="border:none">
+        <b>Shapes</b><span>Rounded-geometric: rounded-lg→2xl cards, pill badges, logo = rounded rect + square + ascending bars.</span></div></div>
+      <div class="tile"><div class="cap" style="border:none">
+        <b>Mood</b><span>Technical / infrastructure / minimal-bold. Blueprint grid + heavy black + Space Grotesk.</span></div></div>
+      <div class="tile"><div class="cap" style="border:none">
+        <b>Rhythm</b><span>8px spacing, p-5/p-6 cards, 1px hairline borders, soft shadows, medium density.</span></div></div>
+    </div>
+  </section>
+
+  <!-- ── PHASE 2 — COLOR SYSTEM ────────────────────────────────────────── -->
+  <section class="section">
+    <h2>Phase 2 — Color System</h2>
+    <div class="swatches" id="swatches"></div>
+  </section>
+
+  <!-- ── PHASE 3 — PATTERNS ────────────────────────────────────────────── -->
+  <section class="section">
+    <h2>Phase 3 — SVG Patterns (tileable section backgrounds)</h2>
+    <div class="tiles">
+
+      <div class="tile">
+        <svg class="canvas" width="100%" viewBox="0 0 240 150" preserveAspectRatio="xMidYMid slice">
+          <defs><pattern id="p-blueprint" width="32" height="32" patternUnits="userSpaceOnUse">
+            <rect width="32" height="32" fill="var(--brand-neutral-50)"/>
+            <path d="M32 0H0V32" fill="none" stroke="var(--brand-primary)" stroke-opacity=".14" stroke-width="1"/>
+            <path d="M16 0V32M0 16H32" stroke="var(--brand-primary)" stroke-opacity=".06" stroke-width="1"/>
+          </pattern></defs>
+          <rect width="240" height="150" fill="url(#p-blueprint)"/>
+        </svg>
+        <div class="cap"><b>Blueprint Grid</b><span>Refined dot-grid. Use: page &amp; section backgrounds (auth, hero).</span></div>
+      </div>
+
+      <div class="tile">
+        <svg class="canvas" width="100%" viewBox="0 0 240 150" preserveAspectRatio="xMidYMid slice">
+          <defs><pattern id="p-nodes" width="28" height="28" patternUnits="userSpaceOnUse">
+            <rect width="28" height="28" fill="var(--brand-neutral-50)"/>
+            <circle cx="14" cy="14" r="2" fill="var(--brand-primary)" fill-opacity=".22"/>
+          </pattern></defs>
+          <rect width="240" height="150" fill="url(#p-nodes)"/>
+        </svg>
+        <div class="cap"><b>Network Nodes</b><span>Manhole-dot grid. Use: map/GIS panels, empty states.</span></div>
+      </div>
+
+      <div class="tile">
+        <svg class="canvas" width="100%" viewBox="0 0 240 150" preserveAspectRatio="xMidYMid slice">
+          <defs><pattern id="p-pipes" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="40" height="40" fill="var(--brand-neutral-50)"/>
+            <line x1="0" y1="10" x2="40" y2="10" stroke="var(--brand-primary)" stroke-opacity=".10" stroke-width="3"/>
+            <line x1="0" y1="28" x2="40" y2="28" stroke="var(--brand-secondary)" stroke-opacity=".08" stroke-width="3"/>
+          </pattern></defs>
+          <rect width="240" height="150" fill="url(#p-pipes)"/>
+        </svg>
+        <div class="cap"><b>Pipeline Lines</b><span>Diagonal twin-runs (gravity + force-main). Use: CTA bands.</span></div>
+      </div>
+
+      <div class="tile">
+        <svg class="canvas" width="100%" viewBox="0 0 240 150" preserveAspectRatio="xMidYMid slice">
+          <defs><pattern id="p-bars" width="34" height="34" patternUnits="userSpaceOnUse">
+            <rect width="34" height="34" fill="var(--brand-neutral-50)"/>
+            <rect x="10" y="18" width="3" height="8"  rx="1.5" fill="var(--brand-primary)" fill-opacity=".18"/>
+            <rect x="16" y="13" width="3" height="13" rx="1.5" fill="var(--brand-primary)" fill-opacity=".18"/>
+            <rect x="22" y="8"  width="3" height="18" rx="1.5" fill="var(--brand-primary)" fill-opacity=".18"/>
+          </pattern></defs>
+          <rect width="240" height="150" fill="url(#p-bars)"/>
+        </svg>
+        <div class="cap"><b>Logo Bars</b><span>Repeated ascending-bar motif from the logo. Use: footers, headers.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── PHASE 3 — SHAPES ──────────────────────────────────────────────── -->
+  <section class="section">
+    <h2>Phase 3 — Shape Assets (CSS-var fills, scalable viewBox)</h2>
+    <div class="tiles">
+
+      <div class="tile">
+        <div class="canvas" style="display:flex;align-items:center;justify-content:center;background:var(--brand-neutral-50)">
+          <svg width="150" height="120" viewBox="0 0 150 120">
+            <path d="M10 90 Q 50 20 90 60 T 150 30 L150 120 L0 120 Z" fill="var(--brand-primary)" fill-opacity=".12"/>
+            <path d="M0 100 Q 60 50 110 80 T 150 70" fill="none" stroke="var(--brand-primary)" stroke-opacity=".35" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="cap"><b>Hero Arc</b><span>Large low-opacity background accent. sm/md/lg via viewBox.</span></div>
+      </div>
+
+      <div class="tile">
+        <div class="canvas" style="display:flex;align-items:center;justify-content:center;background:var(--brand-neutral-50)">
+          <svg width="180" height="40" viewBox="0 0 180 40">
+            <path d="M0 20 C 45 0, 90 40, 135 18 S 180 8 180 20" fill="none" stroke="var(--brand-accent)" stroke-opacity=".5" stroke-width="2"/>
+            <circle cx="135" cy="18" r="3" fill="var(--brand-accent)"/>
+          </svg>
+        </div>
+        <div class="cap"><b>Section Divider</b><span>Flowing connector line + node between sections.</span></div>
+      </div>
+
+      <div class="tile">
+        <div class="canvas" style="display:flex;align-items:center;justify-content:center;background:var(--brand-neutral-50)">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <path d="M4 24 V8 a4 4 0 0 1 4-4 H24" fill="none" stroke="var(--brand-primary)" stroke-opacity=".5" stroke-width="3" stroke-linecap="round"/>
+            <rect x="14" y="14" width="10" height="10" rx="2" fill="var(--brand-primary)" fill-opacity=".25"/>
+          </svg>
+        </div>
+        <div class="cap"><b>Card Corner Bracket</b><span>Engineering corner mark for card tops / highlights.</span></div>
+      </div>
+
+      <div class="tile">
+        <div class="canvas" style="display:flex;align-items:center;justify-content:center;background:var(--brand-neutral-50)">
+          <svg width="120" height="80" viewBox="0 0 120 80">
+            <rect x="20" y="48" width="10" height="22" rx="3" fill="var(--brand-primary)"/>
+            <rect x="40" y="34" width="10" height="36" rx="3" fill="var(--brand-secondary)"/>
+            <rect x="60" y="22" width="10" height="48" rx="3" fill="var(--brand-accent)"/>
+            <rect x="80" y="10" width="10" height="60" rx="3" fill="var(--brand-primary-dark)"/>
+          </svg>
+        </div>
+        <div class="cap"><b>Bar Cluster</b><span>Logo-derived bar-chart accent for CTA texture / hero.</span></div>
+      </div>
+
+      <div class="tile">
+        <div class="canvas" style="display:flex;align-items:center;justify-content:center;background:var(--brand-neutral-50)">
+          <svg width="140" height="70" viewBox="0 0 140 70">
+            <line x1="14" y1="50" x2="54" y2="26" stroke="var(--brand-primary)" stroke-width="3" stroke-linecap="round"/>
+            <line x1="54" y1="26" x2="100" y2="40" stroke="var(--brand-secondary)" stroke-width="3" stroke-linecap="round"/>
+            <line x1="100" y1="40" x2="126" y2="18" stroke="var(--brand-accent)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="14" cy="50" r="4" fill="var(--brand-primary)"/><circle cx="54" cy="26" r="4" fill="var(--brand-primary)"/>
+            <circle cx="100" cy="40" r="4" fill="var(--brand-secondary)"/><circle cx="126" cy="18" r="4" fill="var(--brand-accent)"/>
+          </svg>
+        </div>
+        <div class="cap"><b>Node Connector</b><span>Segment/manhole network motif for map &amp; empty states.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── COMPONENT SHOWCASE (light + dark) ─────────────────────────────── -->
+  <section class="section">
+    <h2>Applied to Components — Light &amp; Dark</h2>
+    <p class="note">Same tokens, two surface ramps. This is how the refreshed palette would feel on real UI.</p>
+
+    <div class="board" id="board-light"></div>
+    <div class="board dark-scope" id="board-dark"></div>
+  </section>
+
+</div>
+
+<script>
+/* Build the color swatches from the actual CSS variables so the preview is the
+   single source of truth. */
+const PALETTE = [
+  ['--brand-primary',        'Primary',          'Main CTA, links, active states. Anchored on existing #2563FF.'],
+  ['--brand-primary-light',  'Primary Light',    'Hover tints, focus-ring halo, soft fills.'],
+  ['--brand-primary-dark',   'Primary Dark',     'Pressed states + AA-safe primary text on white (7.1:1).'],
+  ['--brand-secondary',      'Secondary',        'Supporting series & emphasis (existing violet).'],
+  ['--brand-secondary-light','Secondary Light',  'Violet wash backgrounds.'],
+  ['--brand-secondary-dark', 'Secondary Dark',   'Violet text / pressed.'],
+  ['--brand-accent',         'Accent',           'Badges, tags, highlights (cyan, already in zone types).'],
+  ['--brand-accent-light',   'Accent Light',     'Tag backgrounds.'],
+  ['--brand-neutral-50',     'Neutral 50',       'Page background.'],
+  ['--brand-neutral-100',    'Neutral 100',      'Card background.'],
+  ['--brand-neutral-200',    'Neutral 200',      'Borders / dividers.'],
+  ['--brand-neutral-400',    'Neutral 400',      'Muted text (large only).'],
+  ['--brand-neutral-600',    'Neutral 600',      'Secondary text (AA 7.4:1).'],
+  ['--brand-neutral-900',    'Neutral 900',      'Primary text — the Midnight ink.'],
+  ['--brand-success',        'Success',          'AA-tuned green.'],
+  ['--brand-warning',        'Warning',          'AA-tuned amber.'],
+  ['--brand-danger',         'Danger',           'AA-tuned red.'],
+];
+const cs = getComputedStyle(document.documentElement);
+document.getElementById('swatches').innerHTML = PALETTE.map(([v,name,why]) => {
+  const hex = cs.getPropertyValue(v).trim() || '—';
+  const border = ['--brand-neutral-100','--brand-primary-light','--brand-accent-light','--brand-secondary-light','--brand-neutral-50'].includes(v) ? 'box-shadow:inset 0 0 0 1px #e3e8f0' : '';
+  return `<div class="swatch">
+    <div class="chip" style="background:${hex};${border}"></div>
+    <div class="meta"><div class="name">${name}</div><div class="hex">${hex}</div><div class="why">${why}</div></div>
+  </div>`;
+}).join('');
+
+/* Component board markup, reused for light & dark */
+const boardHTML = `
+  <h3>Buttons · Badges · Card · Input</h3>
+  <div class="row">
+    <button class="btn btn-primary">Create Project</button>
+    <button class="btn btn-secondary">Invite Member</button>
+    <button class="btn btn-ghost">Join Workspace →</button>
+  </div>
+  <div class="row">
+    <span class="badge b-primary">Active</span>
+    <span class="badge b-accent">Gravity</span>
+    <span class="badge b-success">Completed</span>
+    <span class="badge b-warning">On Hold</span>
+    <span class="badge b-danger">Overdue</span>
+  </div>
+  <div class="row" style="align-items:flex-start">
+    <div class="card">
+      <div class="k">Overall Progress</div>
+      <div class="v" style="color:var(--brand-primary)">67%</div>
+      <div class="s">4 zones · 31 segments</div>
+      <div class="bar"><i style="width:67%"></i></div>
+    </div>
+    <div style="flex:1;min-width:240px">
+      <div class="sec" style="margin-bottom:8px">Portfolio name</div>
+      <input class="input" value="bdcc" />
+      <div class="muted" style="margin-top:10px">Muted helper text — neutral-400.</div>
+      <a href="#" style="color:var(--brand-primary);font-size:13px;font-weight:600;text-decoration:none">Primary link →</a>
+    </div>
+  </div>`;
+document.getElementById('board-light').innerHTML = '<div class="muted" style="margin-bottom:12px;font-weight:700">LIGHT</div>' + boardHTML;
+document.getElementById('board-dark').innerHTML  = '<div class="muted" style="margin-bottom:12px;font-weight:700">DARK</div>' + boardHTML;
+</script>
+</body>
+</html>

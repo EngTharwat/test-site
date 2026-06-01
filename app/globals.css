@@ -3,17 +3,60 @@
 /* Enable dark mode via .dark class on <html> (Tailwind v4 class strategy) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ============================================================================
+   PMBoards — Brand color system (refresh)
+   Personality preserved: primary anchored on #2563FF, violet support, cyan
+   accent, near-black ink. Only elevated: full tint→shade ramps + cool-slate
+   neutrals, all AA-checked. See /brand/refresh-preview.html for the rationale.
+   ============================================================================ */
 :root {
+  /* Brand */
+  --brand-primary:        #2563FF;
+  --brand-primary-light:  #EAF0FF;
+  --brand-primary-dark:   #1A3FAE;
+  --brand-secondary:      #7C3AED;
+  --brand-secondary-light:#F2ECFE;
+  --brand-secondary-dark: #5B23B8;
+  --brand-accent:         #06B6D4;
+  --brand-accent-light:   #E0FAFE;
+
+  /* Neutrals (cool-slate, harmonious with the blue) */
+  --brand-neutral-50:  #F7F9FC;
+  --brand-neutral-100: #FFFFFF;
+  --brand-neutral-200: #E3E8F0;
+  --brand-neutral-400: #8A95A6;
+  --brand-neutral-600: #4A5567;
+  --brand-neutral-900: #0F1115;
+
+  /* Status (hues unchanged, AA-tuned) */
+  --brand-success: #16A34A;
+  --brand-warning: #D97706;
+  --brand-danger:  #DC2626;
+
+  /* ── Legacy aliases (kept so existing components keep working) ── */
   --black: #000000;
   --white: #ffffff;
-  --blue:  #2563FF;
-  --violet:#7C3AED;
-  --g900:  #0F1115;
+  --blue:  var(--brand-primary);
+  --violet:var(--brand-secondary);
+  --g900:  var(--brand-neutral-900);
   --g700:  #374151;
   --g500:  #6B7280;
   --g300:  #D1D5DB;
   --g100:  #F3F4F6;
   --font:  var(--font-space-grotesk), 'Space Grotesk', Arial, sans-serif;
+}
+
+/* Dark-surface ramp */
+.dark {
+  --brand-neutral-50:  #0a0a0a;
+  --brand-neutral-100: #14161B;
+  --brand-neutral-200: #262A33;
+  --brand-neutral-400: #7C8696;
+  --brand-neutral-600: #A6AEBC;
+  --brand-neutral-900: #F1F5F9;
+  --brand-primary-light:  #16203A;
+  --brand-secondary-light:#1E1733;
+  --brand-accent-light:   #0A2A30;
 }
 
 *, *::before, *::after {
@@ -32,20 +75,43 @@ body {
   color: #f1f5f9;
 }
 
-/* Blueprint grid background — used on /, /login, /register */
+/* ── Blueprint grid background — refreshed to a subtle primary tint ──────────
+   Used on /, /login, /register. Matches the "Blueprint Grid" preview pattern. */
 .dot-grid {
-  background-color: #f8fafc;
+  background-color: var(--brand-neutral-50);
   background-image:
-    linear-gradient(rgba(203, 213, 225, 0.7) 1px, transparent 1px),
-    linear-gradient(to right, rgba(203, 213, 225, 0.7) 1px, transparent 1px);
+    linear-gradient(rgba(37, 99, 255, 0.10) 1px, transparent 1px),
+    linear-gradient(to right, rgba(37, 99, 255, 0.10) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 .dark .dot-grid {
   background-color: #0a0a0a;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+/* ── Reusable decorative pattern backgrounds (from the refresh) ───────────── */
+.bg-nodes {
+  background-color: var(--brand-neutral-50);
+  background-image: radial-gradient(rgba(37,99,255,0.20) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+.dark .bg-nodes {
+  background-color: #0a0a0a;
+  background-image: radial-gradient(rgba(255,255,255,0.06) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+.bg-pipes {
+  background-color: var(--brand-neutral-50);
+  background-image: repeating-linear-gradient(45deg,
+    rgba(37,99,255,0.07) 0 3px, transparent 3px 20px);
+}
+.dark .bg-pipes {
+  background-color: #0a0a0a;
+  background-image: repeating-linear-gradient(45deg,
+    rgba(255,255,255,0.04) 0 3px, transparent 3px 20px);
 }
 
 /* Make native browser chrome (selects, date pickers) dark in dark mode */
