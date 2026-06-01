@@ -1,8 +1,8 @@
 'use client'
 
 // This file is imported with ssr:false — safe to use window/document
-import { useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from 'react-leaflet'
+import { useEffect, useRef, useState } from 'react'
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Segment, Zone } from '@/lib/types'
 
@@ -38,6 +38,25 @@ const FALLBACK_COLORS = ['#2563FF','#7C3AED','#22c55e','#f97316','#ef4444','#06b
 
 export function zoneColor(type: string, idx = 0): string {
   return TYPE_COLORS[type] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length]
+}
+
+// ── Zoom watcher ──────────────────────────────────────────────────────────────
+// Reports the live zoom so line width & node radius can scale with the map,
+// keeping them a constant size relative to the ground instead of the screen.
+function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
+  const map = useMap()
+  useEffect(() => { onZoom(map.getZoom()) }, [map, onZoom])
+  useMapEvents({ zoom: () => onZoom(map.getZoom()) })
+  return null
+}
+
+// Map a zoom level to a pixel width that represents a constant ground size.
+// Each +1 zoom doubles the map scale, so the pixel size doubles too.
+const BASE_ZOOM = 16   // reference zoom
+const BASE_PX   = 3    // line width (px) at BASE_ZOOM
+function weightForZoom(zoom: number): number {
+  const w = BASE_PX * Math.pow(2, zoom - BASE_ZOOM)
+  return Math.max(1, Math.min(w, 80))   // clamp so it never vanishes or overwhelms
 }
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
@@ -88,6 +107,11 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
   // Default center: Saudi Arabia
   const defaultCenter: [number, number] = [24.68, 46.72]
 
+  // Live zoom → drives line width & node radius (constant size vs. the map)
+  const [zoom, setZoom] = useState(12)
+  const lineWeight = weightForZoom(zoom)
+  const nodeRadius = lineWeight * 2   // node diameter tracks the line width
+
   const tileUrl = isDark
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
@@ -101,13 +125,14 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
       style={{ width: '100%', height: '100%', background: isDark ? '#1a1a2e' : '#e8f4f8' }}
     >
       <TileLayer url={tileUrl} attribution={tileAttrib} />
+      <ZoomWatcher onZoom={setZoom} />
       {mapped.length > 0 && <FitBounds mapped={mapped} />}
 
       {mapped.map(seg => {
         const start: [number, number] = [seg.startLat!, seg.startLng!]
         const end:   [number, number] = [seg.endLat!,   seg.endLng!]
         const color  = seg.zoneColor
-        const weight = selected?.id === seg.id ? 6 : 3
+        const weight = selected?.id === seg.id ? lineWeight * 2 : lineWeight
         const opacity = selected && selected.id !== seg.id ? 0.4 : 1
 
         return (
@@ -147,7 +172,7 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
         <CircleMarker
           key={`node-${seg.id}`}
           center={[seg.startLat!, seg.startLng!]}
-          radius={4}
+          radius={nodeRadius}
           pathOptions={{ color: seg.zoneColor, fillColor: seg.zoneColor, fillOpacity: 1, weight: 1 }}
         />
       ))}
