@@ -106,29 +106,40 @@ const DEMO_PROJECTS = [
 ]
 
 // ── Demo dashboard component ──────────────────────────────────────────────────
-// FIX 2: border-2 border-slate-300 dark:border-slate-600 added to browser chrome div
+// Interactive, always-dark demo dashboard with a thick high-contrast frame.
+const DEMO_TEAM = [
+  { name: 'Eng. Sara A.',   role: 'Planning',    scope: 'All projects',     color: 'bg-[#2563FF]' },
+  { name: 'Eng. Khalid M.', role: 'Site',        scope: 'Riyadh North',      color: 'bg-[#22c55e]' },
+  { name: 'Eng. Noura T.',  role: 'QA / QC',     scope: 'Sewer Rehab',       color: 'bg-[#f97316]' },
+  { name: 'Eng. Faisal R.', role: 'Survey',      scope: 'Water Main',        color: 'bg-[#7C3AED]' },
+]
+
 function DemoDashboard() {
+  const router = useRouter()
+  const [tab, setTab] = useState<'portfolio' | 'team'>('portfolio')
+  const go = () => router.push('/register')
+
   return (
-    <div className="relative w-full select-none pointer-events-none" style={{ maxWidth: 700 }}>
+    <div className="relative w-full" style={{ maxWidth: 700 }}>
 
       {/* "Demo Preview" badge */}
       <div className="absolute -top-3 -right-3 z-10 bg-[#2563FF] text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md">
-        Demo Preview
+        Live Demo · click around
       </div>
 
-      {/* Browser chrome — FIX 2: visible border in both modes */}
-      <div className="rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-300 dark:border-slate-600 bg-white ring-1 ring-black/5">
+      {/* Browser chrome — thick high-contrast frame */}
+      <div className="rounded-2xl overflow-hidden shadow-2xl border-4 border-[#2563FF] ring-1 ring-black/20 bg-[#0a0a0a]">
 
         {/* Chrome bar */}
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F3F4F6] border-b border-gray-200">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#1a1d23] border-b border-white/10">
           <span className="w-3 h-3 rounded-full bg-[#FF5F57]" />
           <span className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
           <span className="w-3 h-3 rounded-full bg-[#28C840]" />
-          <div className="flex-1 mx-3 bg-white border border-gray-200 rounded-md px-3 py-1 text-[11px] text-[#9CA3AF] font-mono">
+          <div className="flex-1 mx-3 bg-[#0a0a0a] border border-white/10 rounded-md px-3 py-1 text-[11px] text-white/40 font-mono">
             pmboards.com/dashboard
           </div>
           <div className="flex gap-1">
-            {[1,2].map(i => <div key={i} className="w-3 h-3 rounded-sm bg-gray-200" />)}
+            {[1,2].map(i => <div key={i} className="w-3 h-3 rounded-sm bg-white/10" />)}
           </div>
         </div>
 
@@ -142,18 +153,21 @@ function DemoDashboard() {
               <span className="text-white text-[11px] font-bold tracking-tight">PMBoards</span>
             </div>
             <nav className="flex-1 p-2 space-y-px">
-              {[
-                { label: 'Portfolio', active: true,  dot: 'bg-white/60' },
-                { label: 'Team',      active: false, dot: 'bg-white/20' },
-              ].map(item => (
-                <div key={item.label}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-medium ${
-                    item.active ? 'bg-white/[0.08] text-white' : 'text-white/35'
-                  }`}>
-                  <span className={`w-1.5 h-1.5 rounded-[2px] ${item.dot}`} />
-                  {item.label}
-                </div>
-              ))}
+              {([
+                { key: 'portfolio', label: 'Portfolio' },
+                { key: 'team',      label: 'Team' },
+              ] as const).map(item => {
+                const active = tab === item.key
+                return (
+                  <button key={item.key} onClick={() => setTab(item.key)}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-medium transition-colors ${
+                      active ? 'bg-white/[0.10] text-white' : 'text-white/40 hover:text-white/80 hover:bg-white/[0.05]'
+                    }`}>
+                    <span className={`w-1.5 h-1.5 rounded-[2px] ${active ? 'bg-[#2563FF]' : 'bg-white/20'}`} />
+                    {item.label}
+                  </button>
+                )
+              })}
             </nav>
             <div className="px-3 py-2.5 border-t border-white/[0.06]">
               <div className="text-[9px] text-white/30 truncate mb-1">admin@nwc.sa</div>
@@ -161,51 +175,76 @@ function DemoDashboard() {
             </div>
           </div>
 
-          {/* Main content */}
-          <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 space-y-3">
+          {/* Main content — dark */}
+          <div className="flex-1 overflow-y-auto bg-[#0a0a0a] p-4 space-y-3">
 
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-[13px] font-bold text-black tracking-tight">Portfolio</div>
-                <div className="text-[10px] text-[#6B7280]">All active and planned projects</div>
-              </div>
-              <div className="bg-black text-white text-[9px] font-semibold px-2.5 py-1.5 rounded-lg">
-                + New Project
-              </div>
-            </div>
-
-            {/* KPI cards — 2×2 */}
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_STATS.map(k => (
-                <div key={k.label} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
-                  <div className="text-[8px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{k.label}</div>
-                  <div className="text-[13px] font-bold text-black tracking-tight leading-none">{k.value}</div>
-                  <div className="text-[8px] text-[#9CA3AF] mt-1">{k.sub}</div>
+                <div className="text-[13px] font-bold text-white tracking-tight">{tab === 'portfolio' ? 'Portfolio' : 'Team'}</div>
+                <div className="text-[10px] text-white/40">
+                  {tab === 'portfolio' ? 'All active and planned projects' : 'Members & their access scope'}
                 </div>
-              ))}
+              </div>
+              <button onClick={go}
+                className="bg-white text-black text-[9px] font-semibold px-2.5 py-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+                {tab === 'portfolio' ? '+ New Project' : '+ Invite Member'}
+              </button>
             </div>
 
-            {/* Project cards — 2×2 */}
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_PROJECTS.map((p, i) => (
-                <div key={i} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
-                  <div className="flex items-start justify-between gap-1 mb-1">
-                    <div className="text-[10px] font-semibold text-black leading-tight line-clamp-2 flex-1">{p.name}</div>
-                    <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${p.statusCls}`}>
-                      {p.status}
+            {tab === 'portfolio' ? (
+              <>
+                {/* KPI cards — 2×2 */}
+                <div className="grid grid-cols-2 gap-2">
+                  {DEMO_STATS.map(k => (
+                    <div key={k.label} className="bg-gray-900 rounded-xl p-3 border border-gray-800">
+                      <div className="text-[8px] font-semibold text-white/40 uppercase tracking-wider mb-1">{k.label}</div>
+                      <div className="text-[13px] font-bold text-white tracking-tight leading-none">{k.value}</div>
+                      <div className="text-[8px] text-white/30 mt-1">{k.sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Project cards — 2×2, clickable */}
+                <div className="grid grid-cols-2 gap-2">
+                  {DEMO_PROJECTS.map((p, i) => (
+                    <button key={i} onClick={go}
+                      className="text-left bg-gray-900 rounded-xl p-3 border border-gray-800 hover:border-[#2563FF] hover:-translate-y-0.5 transition-all">
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <div className="text-[10px] font-semibold text-white leading-tight line-clamp-2 flex-1">{p.name}</div>
+                        <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${p.statusCls}`}>
+                          {p.status}
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-white/40 mb-1.5">{p.client}</div>
+                      <div className="h-1 bg-white/10 rounded-full overflow-hidden mb-1.5">
+                        <div className="h-full rounded-full" style={{ width: `${p.pct}%`, background: p.barColor }} />
+                      </div>
+                      <div className="flex justify-between text-[8px]">
+                        <span className="text-white/40">{p.value}</span>
+                        <span className="font-bold text-white">{p.pct}%</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* Team view */
+              <div className="space-y-2">
+                {DEMO_TEAM.map((m, i) => (
+                  <button key={i} onClick={go}
+                    className="w-full text-left flex items-center gap-3 bg-gray-900 rounded-xl p-2.5 border border-gray-800 hover:border-[#2563FF] transition-colors">
+                    <span className={`w-6 h-6 rounded-full ${m.color} flex items-center justify-center text-white text-[9px] font-bold`}>
+                      {m.name.split(' ')[1]?.[0] ?? 'E'}
                     </span>
-                  </div>
-                  <div className="text-[9px] text-[#9CA3AF] mb-1.5">{p.client}</div>
-                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden mb-1.5">
-                    <div className="h-full rounded-full" style={{ width: `${p.pct}%`, background: p.barColor }} />
-                  </div>
-                  <div className="flex justify-between text-[8px]">
-                    <span className="text-[#9CA3AF]">{p.value}</span>
-                    <span className="font-bold text-black">{p.pct}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-semibold text-white truncate">{m.name}</div>
+                      <div className="text-[8px] text-white/40">{m.role} · {m.scope}</div>
+                    </div>
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-white/60">Member</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
           </div>
         </div>
