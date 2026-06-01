@@ -53,10 +53,10 @@ function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
 // Convert a zoom level to a pixel weight that represents a constant ground width.
 // Each +1 zoom doubles the map scale, so the pixel width doubles too.
 const BASE_ZOOM = 16        // reference zoom
-const BASE_PX   = 4 / 3     // line width (px) at BASE_ZOOM — ~1/3 of the old 4px
+const BASE_PX   = 8 / 3     // line width (px) at BASE_ZOOM
 function weightForZoom(zoom: number): number {
   const w = BASE_PX * Math.pow(2, zoom - BASE_ZOOM)
-  return Math.max(0.5, Math.min(w, 48))   // clamp so it never vanishes or overwhelms
+  return Math.max(1, Math.min(w, 96))   // clamp so it never vanishes or overwhelms
 }
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
