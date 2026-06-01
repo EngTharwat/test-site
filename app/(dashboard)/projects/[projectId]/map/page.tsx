@@ -67,6 +67,10 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
   const [fType,     setFType]     = useState('')
   const [fMaterial, setFMaterial] = useState('')
   const [fSurface,  setFSurface]  = useState('')
+  const [fActivity, setFActivity] = useState('')   // '' all | activity key | 'none'
+
+  // Bump to re-fit the map to the visible segments (Fit button)
+  const [fitNonce, setFitNonce] = useState(0)
   const [showUnmapped, setShowUnmapped] = useState(false)
 
   const fetchAll = useCallback(async () => {
@@ -111,6 +115,11 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
     if (fType     && s.zoneType !== fType)                                         return false
     if (fMaterial && s.material !== fMaterial)                                     return false
     if (fSurface  && (s.surfaceType ?? ((s.asphaltThickness ?? 0) > 0 ? 'asphalt' : 'dirt')) !== fSurface) return false
+    if (fActivity) {
+      const idx = lastActivityIndex(s)
+      if (fActivity === 'none') { if (idx !== -1) return false }
+      else if (ACTIVITY_DEFS[idx]?.key !== fActivity) return false
+    }
     return true
   })
 
@@ -130,8 +139,8 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
   const totalLen = filteredMapped.reduce((s, seg) => s + (seg.length || 0), 0)
 
   // Active filters check
-  const hasFilter = !!(fZone || fType || fMaterial || fSurface)
-  const clearFilters = () => { setFZone(''); setFType(''); setFMaterial(''); setFSurface('') }
+  const hasFilter = !!(fZone || fType || fMaterial || fSurface || fActivity)
+  const clearFilters = () => { setFZone(''); setFType(''); setFMaterial(''); setFSurface(''); setFActivity('') }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -187,6 +196,18 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
             <option value="asphalt">Asphalt</option>
             <option value="dirt">Dirt</option>
           </select>
+          <select className={filterCls} value={fActivity} onChange={e => setFActivity(e.target.value)}>
+            <option value="">All Activities</option>
+            {ACTIVITY_DEFS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+            <option value="none">Not Started</option>
+          </select>
+          <button
+            onClick={() => setFitNonce(n => n + 1)}
+            className="border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#374151] dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            title="Fit map to segments"
+          >
+            ⤢ Fit
+          </button>
           {hasFilter && (
             <button onClick={clearFilters}
               className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
@@ -233,6 +254,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
               isDark={isDark}
               onSelect={setSelected}
               selected={selected}
+              fitNonce={fitNonce}
             />
           )}
 

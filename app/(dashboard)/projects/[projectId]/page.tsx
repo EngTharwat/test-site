@@ -354,6 +354,15 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     return { ...zone, segCount: zSegs.length, avgPct, totalLen }
   })
 
+  // Group zones by scope/type — the same zone name can exist under several
+  // scopes (e.g. Gravity and Force Main), so each scope gets its own table.
+  const zonesByType: Record<string, typeof zoneStats> = {}
+  zoneStats.forEach(z => {
+    const t = z.type || 'Untyped'
+    ;(zonesByType[t] ??= []).push(z)
+  })
+  const scopeKeys = Object.keys(zonesByType).sort()
+
   // Overall project progress from segments
   const projectPct = totalSegs > 0
     ? Math.round(segments.reduce((s, seg) => s + (seg.overallPct || 0), 0) / totalSegs)
@@ -463,38 +472,57 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
           </div>
         </div>
 
-        {/* Zone Progress */}
+        {/* Zone Progress by Scope — one table per type (Gravity / Force Main …) */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Zone Progress</h2>
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Zone Progress by Scope</h2>
             <button onClick={() => router.push(`/projects/${projectId}/zones`)}
               className="text-[11px] text-[#2563FF] hover:underline">View all →</button>
           </div>
-          <div className="divide-y divide-gray-50 dark:divide-gray-800">
-            {zones.length === 0 ? (
-              <div className="px-6 py-8 text-center">
-                <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No zones yet</p>
-                <button onClick={() => router.push(`/projects/${projectId}/zones`)}
-                  className="text-sm font-semibold text-black dark:text-white hover:underline">+ Add Zone</button>
-              </div>
-            ) : (
-              zoneStats.slice(0, 6).map(zone => (
-                <div key={zone.id} className="px-6 py-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div>
-                      <span className="text-[12px] font-medium text-black dark:text-white">{zone.name}</span>
-                      {zone.type && <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400">{zone.type}</span>}
+
+          {zones.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No zones yet</p>
+              <button onClick={() => router.push(`/projects/${projectId}/zones`)}
+                className="text-sm font-semibold text-black dark:text-white hover:underline">+ Add Zone</button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {scopeKeys.map(scope => {
+                const list   = zonesByType[scope]
+                const segSum = list.reduce((s, z) => s + z.segCount, 0)
+                const lenSum = list.reduce((s, z) => s + z.totalLen, 0)
+                const avg    = list.length
+                  ? Math.round(list.reduce((s, z) => s + z.avgPct, 0) / list.length) : 0
+                return (
+                  <div key={scope} className="px-6 py-4">
+                    {/* Scope header */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[12px] font-bold text-black dark:text-white">{scope}</span>
+                      <span className="text-[10px] text-[#6B7280] dark:text-gray-400">
+                        {list.length} zone{list.length !== 1 ? 's' : ''} · {segSum} segs · {formatLength(lenSum)} · {avg}%
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[12px] font-bold text-black dark:text-white">{zone.avgPct}%</span>
-                      <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400">{zone.segCount} segs</span>
+                    {/* Per-zone rows for this scope */}
+                    <div className="space-y-2.5">
+                      {list.map(zone => (
+                        <div key={zone.id}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[12px] text-black dark:text-white">{zone.name}</span>
+                            <div className="text-right">
+                              <span className="text-[12px] font-bold text-black dark:text-white">{zone.avgPct}%</span>
+                              <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400">{zone.segCount} segs</span>
+                            </div>
+                          </div>
+                          <Bar pct={zone.avgPct} color={zone.avgPct >= 80 ? '#22c55e' : zone.avgPct >= 40 ? '#f97316' : '#2563FF'} />
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <Bar pct={zone.avgPct} color={zone.avgPct >= 80 ? '#22c55e' : zone.avgPct >= 40 ? '#f97316' : '#2563FF'} />
-                </div>
-              ))
-            )}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 

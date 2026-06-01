@@ -2,7 +2,7 @@
 
 // This file is imported with ssr:false — safe to use window/document
 import { useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Segment, Zone } from '@/lib/types'
 
@@ -18,6 +18,7 @@ interface Props {
   isDark:   boolean
   onSelect: (seg: MappedSegment | null) => void
   selected: MappedSegment | null
+  fitNonce: number   // bump to re-fit the map to the segments on demand
 }
 
 // ── Zone type → color map ─────────────────────────────────────────────────────
@@ -63,7 +64,8 @@ function weightForZoom(zoom: number): number {
 }
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
-function FitBounds({ mapped }: { mapped: MappedSegment[] }) {
+// Re-fits whenever the segment set changes OR fitNonce is bumped (Fit button).
+function FitBounds({ mapped, fitNonce }: { mapped: MappedSegment[]; fitNonce: number }) {
   const map = useMap()
   useEffect(() => {
     if (!mapped.length) return
@@ -74,7 +76,7 @@ function FitBounds({ mapped }: { mapped: MappedSegment[] }) {
     if (isFinite(minLat)) {
       map.fitBounds([[minLat, minLng],[maxLat, maxLng]], { padding: [40, 40] })
     }
-  }, [mapped, map])
+  }, [mapped, map, fitNonce])
   return null
 }
 
@@ -106,7 +108,7 @@ function ActivityDots({ seg }: { seg: MappedSegment }) {
 }
 
 // ── Main map component ────────────────────────────────────────────────────────
-export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props) {
+export default function LeafletMap({ mapped, isDark, onSelect, selected, fitNonce }: Props) {
   // Default center: Saudi Arabia
   const defaultCenter: [number, number] = [24.68, 46.72]
 
@@ -129,7 +131,7 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
     >
       <TileLayer url={tileUrl} attribution={tileAttrib} />
       <ZoomWatcher onZoom={setZoom} />
-      {mapped.length > 0 && <FitBounds mapped={mapped} />}
+      {mapped.length > 0 && <FitBounds mapped={mapped} fitNonce={fitNonce} />}
 
       {mapped.map(seg => {
         const start: [number, number] = [seg.startLat!, seg.startLng!]
@@ -145,6 +147,21 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
             pathOptions={{ color, weight, opacity }}
             eventHandlers={{ click: () => onSelect(seg) }}
           >
+            {/* Hover tooltip — quick properties without clicking */}
+            <Tooltip sticky direction="top" offset={[0, -4]}>
+              <div style={{ fontFamily: 'sans-serif', fontSize: 12, lineHeight: 1.5 }}>
+                <div style={{ fontWeight: 700 }}>{seg.lineNumber || '—'}</div>
+                <div style={{ color: '#6b7280' }}>
+                  {seg.zoneName}{seg.zoneType ? ` — ${seg.zoneType}` : ''}
+                </div>
+                <div>{seg.fromMH} → {seg.toMH}</div>
+                <div>Ø {seg.diameter} mm · {seg.length} m · {seg.material}</div>
+                <div>
+                  {seg.surfaceType === 'asphalt' || (seg.asphaltThickness ?? 0) > 0 ? 'Asphalt' : 'Dirt'}
+                  {' · '}{seg.overallPct ?? 0}% done
+                </div>
+              </div>
+            </Tooltip>
             <Popup>
               <div style={{ minWidth: 180, fontFamily: 'sans-serif', fontSize: 12 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>

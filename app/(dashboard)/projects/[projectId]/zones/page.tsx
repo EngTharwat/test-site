@@ -185,39 +185,46 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="grid grid-cols-[1fr_200px_88px] gap-4 px-6 py-3 bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">
-            <span>Zone Name</span><span>Type</span><span />
+          <div className="grid grid-cols-[1fr_2fr] gap-4 px-6 py-3 bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">
+            <span>Zone Name</span><span>Scopes</span>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
-            {zones.map(zone => (
-              <div key={zone.id}
-                className="grid grid-cols-[1fr_200px_88px] gap-4 items-center px-6 py-4 hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
-                <span className="text-[13px] font-semibold text-black dark:text-white">{zone.name}</span>
-                <span>
-                  {zone.type ? (
-                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeBadge(zone.type)}`}>
-                      {zone.type}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-[#9CA3AF] italic">—</span>
-                  )}
-                </span>
-                <div className="flex gap-3 justify-end">
-                  {canEdit && (
-                    <>
-                      <button onClick={() => openEdit(zone)}
-                        className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Edit</button>
-                      <button onClick={() => deleteZone(zone.id)}
-                        className="text-[11px] text-red-400 hover:text-red-600 transition-colors">Del</button>
-                    </>
-                  )}
+            {/* Group by zone name — same name = one area with multiple scopes */}
+            {Object.entries(
+              zones.reduce<Record<string, typeof zones>>((acc, z) => {
+                ;(acc[z.name] ??= []).push(z); return acc
+              }, {})
+            ).map(([name, scopeZones]) => (
+              <div key={name}
+                className="grid grid-cols-[1fr_2fr] gap-4 items-start px-6 py-4 hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
+                <span className="text-[13px] font-semibold text-black dark:text-white">{name}</span>
+                <div className="flex flex-col gap-2">
+                  {scopeZones.map(zone => (
+                    <div key={zone.id} className="flex items-center justify-between gap-3">
+                      {zone.type ? (
+                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeBadge(zone.type)}`}>
+                          {zone.type}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[#9CA3AF] italic">No scope</span>
+                      )}
+                      {canEdit && (
+                        <div className="flex gap-3">
+                          <button onClick={() => openEdit(zone)}
+                            className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Edit</button>
+                          <button onClick={() => deleteZone(zone.id)}
+                            className="text-[11px] text-red-400 hover:text-red-600 transition-colors">Del</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
           <div className="px-6 py-3 bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
             <span className="text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
-              {zones.length} zone{zones.length !== 1 ? 's' : ''}
+              {new Set(zones.map(z => z.name)).size} area{new Set(zones.map(z => z.name)).size !== 1 ? 's' : ''} · {zones.length} scope{zones.length !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
