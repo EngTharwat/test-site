@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
-import { Segment, Zone, PIPE_MATERIALS, fmtN } from '@/lib/types'
+import { Segment, Zone, fmtN } from '@/lib/types'
 import type { MappedSegment } from './LeafletMap'
 
 // Load Leaflet only in the browser (no SSR)
@@ -89,8 +89,10 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
   useEffect(() => { fetchAll() }, [fetchAll])
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const zoneMap     = Object.fromEntries(zones.map(z => [z.id, z]))
-  const uniqueTypes = [...new Set(zones.map(z => z.type).filter(Boolean))]
+  const zoneMap         = Object.fromEntries(zones.map(z => [z.id, z]))
+  const uniqueTypes     = [...new Set(zones.map(z => z.type).filter(Boolean))]
+  const uniqueZoneNames = [...new Set(zones.map(z => z.name).filter(Boolean))].sort()
+  const uniqueMaterials = [...new Set(segments.map(s => s.material).filter(Boolean))].sort()
 
   const hasCoords = (s: Segment) =>
     s.startLat != null && s.startLng != null && s.endLat != null && s.endLng != null
@@ -111,7 +113,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
 
   // Apply filters
   const filteredMapped = allMapped.filter(s => {
-    if (fZone     && s.zoneId !== fZone)                                           return false
+    if (fZone     && s.zoneName !== fZone)                                         return false
     if (fType     && s.zoneType !== fType)                                         return false
     if (fMaterial && s.material !== fMaterial)                                     return false
     if (fSurface  && (s.surfaceType ?? ((s.asphaltThickness ?? 0) > 0 ? 'asphalt' : 'dirt')) !== fSurface) return false
@@ -181,7 +183,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <select className={filterCls} value={fZone}     onChange={e => setFZone(e.target.value)}>
             <option value="">All Zones</option>
-            {zones.map(z => <option key={z.id} value={z.id}>{z.name}{z.type ? ` — ${z.type}` : ''}</option>)}
+            {uniqueZoneNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
           <select className={filterCls} value={fType}     onChange={e => setFType(e.target.value)}>
             <option value="">All Types</option>
@@ -189,7 +191,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
           </select>
           <select className={filterCls} value={fMaterial} onChange={e => setFMaterial(e.target.value)}>
             <option value="">All Materials</option>
-            {PIPE_MATERIALS.map(m => <option key={m} value={m}>{m}</option>)}
+            {uniqueMaterials.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
           <select className={filterCls} value={fSurface}  onChange={e => setFSurface(e.target.value)}>
             <option value="">All Surfaces</option>

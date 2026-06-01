@@ -305,7 +305,7 @@ export default function LandingPage() {
     <div className="min-h-screen flex flex-col dot-grid">
 
       {/* ── NAV ─────────────────────────────────────────────────── */}
-      <nav className="flex items-center justify-between px-8 md:px-12 py-4 border-b border-[#F3F4F6] dark:border-gray-800 flex-shrink-0">
+      <nav className="flex items-center justify-between px-8 md:px-12 py-4 bg-white/80 dark:bg-transparent backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
         {/* Logo + wordmark */}
         <div className="flex items-center gap-2.5 text-black dark:text-white">
           <LogoIcon size={30} variant="outline" />
@@ -317,7 +317,7 @@ export default function LandingPage() {
           {/* FIX 3: dark mode toggle button */}
           <button
             onClick={toggleTheme}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#374151] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-800 transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 text-[#374151] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-800 transition-colors"
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
@@ -368,7 +368,7 @@ export default function LandingPage() {
             </button>
             <button
               onClick={() => router.push('/login?tab=member')}
-              className="w-full border-2 border-[#E5E7EB] dark:border-gray-600 hover:border-black dark:hover:border-white text-black dark:text-white text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
+              className="w-full border-2 border-gray-400 dark:border-gray-600 hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-800 text-black dark:text-white text-[14px] font-semibold py-3.5 rounded-xl transition-colors"
             >
               Join Your Portfolio
             </button>

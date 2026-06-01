@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import { Segment, Zone, PIPE_MATERIALS, ACTIVITY_KEYS, fmtN } from '@/lib/types'
+import { UploadProgressModal, type UploadState, initialUpload } from '@/lib/upload-progress'
 
 const inputCls = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
 const filterCls = 'border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500'
@@ -61,6 +62,15 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   const [showBulk,   setShowBulk]   = useState(false)
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkResult, setBulkResult] = useState<{ ok: number; fail: number } | null>(null)
+  const [upload,     setUpload]     = useState<UploadState>(initialUpload)
+
+  // Collapsed areas (by zone name)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleArea = (name: string) => setCollapsed(prev => {
+    const next = new Set(prev)
+    next.has(name) ? next.delete(name) : next.add(name)
+    return next
+  })
 
   const fetchAll = useCallback(async () => {
     try {
@@ -82,13 +92,15 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   // ── Derived helpers ───────────────────────────────────────────────────────
   const zoneMap   = Object.fromEntries(zones.map(z => [z.id, z]))
   const zoneLabel = (z: Zone) => z.type ? `${z.name} — ${z.type}` : z.name
-  const uniqueTypes = [...new Set(zones.map(z => z.type).filter(Boolean))]
-  const uniqueDias  = [...new Set(segments.map(s => s.diameter).filter(Boolean))].sort((a, b) => a - b)
+  const uniqueTypes     = [...new Set(zones.map(z => z.type).filter(Boolean))]
+  const uniqueDias      = [...new Set(segments.map(s => s.diameter).filter(Boolean))].sort((a, b) => a - b)
+  const uniqueZoneNames = [...new Set(zones.map(z => z.name).filter(Boolean))].sort()
+  const uniqueMaterials = [...new Set(segments.map(s => s.material).filter(Boolean))].sort()
 
   // ── Apply all filters ─────────────────────────────────────────────────────
   const displayed = segments.filter(seg => {
     const zone = zoneMap[seg.zoneId]
-    if (fZone     && seg.zoneId   !== fZone)                         return false
+    if (fZone     && zone?.name   !== fZone)                         return false
     if (fType     && zone?.type   !== fType)                         return false
     if (fLine     && !seg.lineNumber?.toLowerCase().includes(fLine.toLowerCase())) return false
     if (fDia      && String(seg.diameter) !== fDia)                  return false
@@ -97,6 +109,25 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     return true
   })
   const totalLen = displayed.reduce((s, seg) => s + (seg.length || 0), 0)
+
+  // ── Group by area (zone name); sort lines ascending within each area ────────
+  const lineSort = (a: Segment, b: Segment) =>
+    (a.lineNumber ?? '').localeCompare(b.lineNumber ?? '', undefined, { numeric: true, sensitivity: 'base' })
+
+  const areaGroups = (() => {
+    const map = new Map<string, Segment[]>()
+    displayed.forEach(seg => {
+      const name = zoneMap[seg.zoneId]?.name ?? '—'
+      ;(map.get(name) ?? map.set(name, []).get(name)!).push(seg)
+    })
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+      .map(([name, segs]) => ({
+        name,
+        segs: [...segs].sort(lineSort),
+        length: segs.reduce((s, x) => s + (x.length || 0), 0),
+      }))
+  })()
 
   // ── Surface type badge ────────────────────────────────────────────────────
   const surfaceBadge = (seg: Segment) => {
@@ -261,6 +292,8 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     const valid = bulkRows.filter(r => !r.error)
     if (!valid.length) return
     setBulkSaving(true)
+    setShowBulk(false)
+    setUpload({ open: true, title: 'Uploading segments', total: valid.length, done: 0, ok: 0, fail: 0, finished: false })
     let ok = 0, fail = 0
     for (const row of valid) {
       const surfaceType = row.asphaltThickness > 0 ? 'asphalt' : 'dirt'
@@ -287,10 +320,11 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         }
         ok++
       } catch { fail++ }
+      setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
     }
-    setBulkResult({ ok, fail })
+    setUpload(u => ({ ...u, finished: true }))
+    setBulkRows([])
     setBulkSaving(false)
-    if (fail === 0) setTimeout(() => { setShowBulk(false); setBulkRows([]) }, 1500)
   }
 
   // ── Manual form ───────────────────────────────────────────────────────────
@@ -413,7 +447,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
       <div className="flex flex-wrap items-center gap-2 mb-5 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
         <select className={filterCls} value={fZone}     onChange={e => setFZone(e.target.value)}>
           <option value="">All Zones</option>
-          {zones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)}</option>)}
+          {uniqueZoneNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <select className={filterCls} value={fType}     onChange={e => setFType(e.target.value)}>
           <option value="">All Types</option>
@@ -426,7 +460,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         </select>
         <select className={filterCls} value={fMaterial} onChange={e => setFMaterial(e.target.value)}>
           <option value="">All Materials</option>
-          {PIPE_MATERIALS.map(m => <option key={m} value={m}>{m}</option>)}
+          {uniqueMaterials.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <select className={filterCls} value={fSurface}  onChange={e => setFSurface(e.target.value)}>
           <option value="">All Surfaces</option>
@@ -619,65 +653,100 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[12px] text-center">
             <thead>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                {['Zone','Line','From → To','Ø mm','Len m','Material','Surface',
+                {['Line','From → To','Ø mm','Len m','Material','Surface',
                   ...ACTIVITY_KEYS.map(a => a.label.slice(0,5)), ''].map((h, i) => (
-                  <th key={i} className={`px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i >= 7 ? 'text-center' : i >= 3 ? 'text-right' : 'text-left'}`}>
+                  <th key={i} className="px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {displayed.map(seg => {
-                const zone = zoneMap[seg.zoneId]
+              {areaGroups.map(area => {
+                const isCollapsed = collapsed.has(area.name)
                 return (
-                  <tr key={seg.id} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="px-3 py-3">
-                      <div className="text-[#374151] dark:text-gray-300 font-medium">{zone?.name ?? '—'}</div>
-                      {zone?.type && <div className="text-[9px] text-[#9CA3AF] dark:text-gray-500">{zone.type}</div>}
-                    </td>
-                    <td className="px-3 py-3 font-semibold text-black dark:text-white">{seg.lineNumber || '—'}</td>
-                    <td className="px-3 py-3 text-[#374151] dark:text-gray-300 whitespace-nowrap">{seg.fromMH} → {seg.toMH}</td>
-                    <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300">{fmtN(seg.diameter)}</td>
-                    <td className="px-3 py-3 text-right font-medium text-black dark:text-white">{fmtN(seg.length, 1)}</td>
-                    <td className="px-3 py-3">
-                      <span className="bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">{seg.material}</span>
-                    </td>
-                    <td className="px-3 py-3">{surfaceBadge(seg)}</td>
-                    {ACTIVITY_KEYS.map(a => (
-                      <td key={a.key} className="px-3 py-3 text-center">
-                        {activityDot(seg, a.key, a.color)}
+                  <>
+                    {/* Area header — click to collapse/expand */}
+                    <tr key={`area-${area.name}`}
+                      className="bg-[#F9FAFB] dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 cursor-pointer select-none"
+                      onClick={() => toggleArea(area.name)}>
+                      <td colSpan={7 + ACTIVITY_KEYS.length} className="px-3 py-2.5 text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-2 text-[12px] font-bold text-black dark:text-white">
+                            <span className="inline-block w-3 text-[#6B7280] dark:text-gray-400">{isCollapsed ? '▸' : '▾'}</span>
+                            {area.name}
+                            <span className="text-[10px] font-normal text-[#6B7280] dark:text-gray-400">
+                              ({area.segs.length})
+                            </span>
+                          </span>
+                          <span className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">
+                            {fmtN(area.length, 1)} m
+                          </span>
+                        </div>
                       </td>
-                    ))}
-                    <td className="px-3 py-3">
-                      <div className="flex gap-2 justify-end whitespace-nowrap">
-                        {canEdit && (
-                          <>
-                            <button onClick={() => openEdit(seg)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white">Edit</button>
-                            <button onClick={() => deleteSeg(seg.id)} className="text-[11px] text-red-400 hover:text-red-600">Del</button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                    </tr>
+
+                    {/* Segment rows (hidden when collapsed) */}
+                    {!isCollapsed && area.segs.map(seg => {
+                      const zone = zoneMap[seg.zoneId]
+                      return (
+                        <tr key={seg.id} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
+                          <td className="px-3 py-3 font-semibold text-black dark:text-white">
+                            {seg.lineNumber || '—'}
+                            {zone?.type && <div className="text-[9px] font-normal text-[#9CA3AF] dark:text-gray-500">{zone.type}</div>}
+                          </td>
+                          <td className="px-3 py-3 text-[#374151] dark:text-gray-300 whitespace-nowrap">{seg.fromMH} → {seg.toMH}</td>
+                          <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{fmtN(seg.diameter)}</td>
+                          <td className="px-3 py-3 font-medium text-black dark:text-white">{fmtN(seg.length, 1)}</td>
+                          <td className="px-3 py-3">
+                            <span className="bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">{seg.material}</span>
+                          </td>
+                          <td className="px-3 py-3">{surfaceBadge(seg)}</td>
+                          {ACTIVITY_KEYS.map(a => (
+                            <td key={a.key} className="px-3 py-3">
+                              <div className="flex justify-center">{activityDot(seg, a.key, a.color)}</div>
+                            </td>
+                          ))}
+                          <td className="px-3 py-3">
+                            <div className="flex gap-2 justify-center whitespace-nowrap">
+                              {canEdit && (
+                                <>
+                                  <button onClick={() => openEdit(seg)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white">Edit</button>
+                                  <button onClick={() => deleteSeg(seg.id)} className="text-[11px] text-red-400 hover:text-red-600">Del</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </>
                 )
               })}
             </tbody>
             <tfoot>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
-                <td colSpan={4} className="px-3 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
-                  Total ({displayed.length} segments)
+                <td className="px-3 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider text-left">
+                  Total ({displayed.length})
                 </td>
-                <td className="px-3 py-3 text-right text-[12px] font-bold text-black dark:text-white">{fmtN(totalLen, 1)}</td>
-                <td colSpan={8} />
+                <td />
+                <td />
+                <td className="px-3 py-3 text-[12px] font-bold text-black dark:text-white">{fmtN(totalLen, 1)}</td>
+                <td colSpan={3 + ACTIVITY_KEYS.length} />
               </tr>
             </tfoot>
           </table>
         </div>
       )}
+
+      {/* Animated upload progress */}
+      <UploadProgressModal
+        state={upload}
+        onClose={() => setUpload(initialUpload)}
+      />
     </div>
   )
 }

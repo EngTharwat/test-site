@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
-import { Segment, Zone, PIPE_MATERIALS, ACTIVITY_KEYS, fmtN } from '@/lib/types'
+import { Segment, Zone, fmtN } from '@/lib/types'
+import { UploadProgressModal, type UploadState, initialUpload } from '@/lib/upload-progress'
 
 // The 5 activities in cascade order
 const ACTIVITIES = [
@@ -63,6 +64,15 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importing,    setImporting]    = useState(false)
   const [importResult, setImportResult] = useState<{ ok: number; fail: number; skipped: number } | null>(null)
+  const [upload,       setUpload]       = useState<UploadState>(initialUpload)
+
+  // Collapsed areas (by zone name)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleArea = (name: string) => setCollapsed(prev => {
+    const next = new Set(prev)
+    next.has(name) ? next.delete(name) : next.add(name)
+    return next
+  })
 
   // Filters
   const [fZone,     setFZone]     = useState('')
@@ -87,16 +97,16 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const zoneMap      = Object.fromEntries(zones.map(z => [z.id, z]))
-  const uniqueTypes  = [...new Set(zones.map(z => z.type).filter(Boolean))]
-  const uniqueDias   = [...new Set(segments.map(s => s.diameter).filter(Boolean))].sort((a, b) => a - b)
-
-  const zoneFilteredZones = fType ? zones.filter(z => z.type === fType) : zones
+  const zoneMap         = Object.fromEntries(zones.map(z => [z.id, z]))
+  const uniqueTypes     = [...new Set(zones.map(z => z.type).filter(Boolean))]
+  const uniqueDias      = [...new Set(segments.map(s => s.diameter).filter(Boolean))].sort((a, b) => a - b)
+  const uniqueZoneNames = [...new Set(zones.map(z => z.name).filter(Boolean))].sort()
+  const uniqueMaterials = [...new Set(segments.map(s => s.material).filter(Boolean))].sort()
 
   // Apply all filters
   const displayed = segments.filter(seg => {
     const zone = zoneMap[seg.zoneId]
-    if (fZone     && seg.zoneId !== fZone)                                             return false
+    if (fZone     && zone?.name !== fZone)                                             return false
     if (fType     && zone?.type !== fType)                                             return false
     if (fLine     && !seg.lineNumber?.toLowerCase().includes(fLine.toLowerCase()))     return false
     if (fDia      && String(seg.diameter) !== fDia)                                    return false
@@ -105,13 +115,25 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
     return true
   })
 
-  // Sort: by zone order, then line number
+  // Sort: by area name, then line number ascending
   const sorted = [...displayed].sort((a, b) => {
-    const zA = zoneMap[a.zoneId], zB = zoneMap[b.zoneId]
-    const zo = (zA?.createdAt?.seconds ?? 0) - (zB?.createdAt?.seconds ?? 0)
-    if (zo !== 0) return zo
-    return (a.lineNumber ?? '').localeCompare(b.lineNumber ?? '', undefined, { numeric: true })
+    const nA = zoneMap[a.zoneId]?.name ?? '', nB = zoneMap[b.zoneId]?.name ?? ''
+    const nc = nA.localeCompare(nB, undefined, { numeric: true })
+    if (nc !== 0) return nc
+    return (a.lineNumber ?? '').localeCompare(b.lineNumber ?? '', undefined, { numeric: true, sensitivity: 'base' })
   })
+
+  // Group by area (zone name) for collapse/expand with per-area totals
+  const areaGroups = (() => {
+    const map = new Map<string, Segment[]>()
+    sorted.forEach(seg => {
+      const name = zoneMap[seg.zoneId]?.name ?? '—'
+      ;(map.get(name) ?? map.set(name, []).get(name)!).push(seg)
+    })
+    return [...map.entries()].map(([name, segs]) => ({
+      name, segs, length: segs.reduce((s, x) => s + (x.length || 0), 0),
+    }))
+  })()
 
   // Summary totals per activity (sum of length where done)
   const activityTotals = ACTIVITIES.map(({ key }) =>
@@ -197,6 +219,12 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
       const actCols = ACTIVITIES.map(a =>
         hdr.findIndex((_: any, i: number) => String(hdr[i]).trim().toLowerCase() === a.label.toLowerCase()))
 
+      const matchable = dataRows.filter(row => {
+        const id = idCol >= 0 ? String(row[idCol] ?? '').trim() : ''
+        return byId.has(id)
+      }).length
+      setUpload({ open: true, title: 'Importing progress', total: matchable, done: 0, ok: 0, fail: 0, finished: false })
+
       let ok = 0, fail = 0, skipped = 0
       for (const row of dataRows) {
         const id = idCol >= 0 ? String(row[idCol] ?? '').trim() : ''
@@ -221,7 +249,9 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
           setSegments(prev => prev.map(s => s.id === seg.id ? updated : s))
           ok++
         } catch { fail++ }
+        setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
       }
+      setUpload(u => ({ ...u, finished: true }))
       setImportResult({ ok, fail, skipped })
       setImporting(false)
     }
@@ -277,11 +307,11 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 mb-5 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
-        <select className={filterCls} value={fZone}     onChange={e => { setFZone(e.target.value); if(!e.target.value) setFType('') }}>
+        <select className={filterCls} value={fZone}     onChange={e => setFZone(e.target.value)}>
           <option value="">All Zones</option>
-          {zoneFilteredZones.map(z => <option key={z.id} value={z.id}>{z.name}{z.type ? ` — ${z.type}` : ''}</option>)}
+          {uniqueZoneNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
-        <select className={filterCls} value={fType}     onChange={e => { setFType(e.target.value); setFZone('') }}>
+        <select className={filterCls} value={fType}     onChange={e => setFType(e.target.value)}>
           <option value="">All Types</option>
           {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -292,7 +322,7 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
         </select>
         <select className={filterCls} value={fMaterial} onChange={e => setFMaterial(e.target.value)}>
           <option value="">All Materials</option>
-          {PIPE_MATERIALS.map(m => <option key={m} value={m}>{m}</option>)}
+          {uniqueMaterials.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <select className={filterCls} value={fSurface}  onChange={e => setFSurface(e.target.value)}>
           <option value="">All Surfaces</option>
@@ -321,18 +351,14 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
         <p className="text-center py-12 text-[#6B7280] dark:text-gray-400 text-sm">No segments match the current filters.</p>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto">
-          <table className="w-full text-[12px] border-collapse">
+          <table className="w-full text-[12px] text-center border-collapse">
             <thead>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <th className="text-center px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider w-10">#</th>
-                <th className="text-left px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Line</th>
-                <th className="text-left px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">From</th>
-                <th className="text-left px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">To</th>
-                <th className="text-right px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Dia</th>
-                <th className="text-right px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Length</th>
+                {['#','Line','From','To','Dia','Length'].map(h => (
+                  <th key={h} className="text-center px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}
                 {ACTIVITIES.map(a => (
-                  <th key={a.key} className="text-center px-3 py-3 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
-                    style={{ color: a.color }}>
+                  <th key={a.key} className="text-center px-3 py-3 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: a.color }}>
                     {a.label}
                   </th>
                 ))}
@@ -340,87 +366,86 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
               </tr>
             </thead>
             <tbody>
-              {sorted.map((seg, idx) => {
-                const zone      = zoneMap[seg.zoneId]
-                const isSaving  = saving === seg.id
-                const prevSeg   = idx > 0 ? sorted[idx - 1] : null
-                const showZone  = !prevSeg || prevSeg.zoneId !== seg.zoneId
-                const bcThk     = seg.basecourseThickness ?? -1   // -1 = legacy (show)
-                const aspThk    = seg.asphaltThickness    ?? -1   // -1 = legacy (show)
-                const showBc    = bcThk  !== 0   // hide if explicitly 0
-                const showAsp   = aspThk !== 0   // hide if explicitly 0
-                const overall   = seg.overallPct ?? 0
-
-                return (
-                  <>
-                    {showZone && (
-                      <tr key={`z-${seg.zoneId}`} className="bg-[#F9FAFB] dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
-                        <td colSpan={6 + ACTIVITIES.length + 1}
-                          className="px-3 py-2 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
-                          {zone?.name ?? 'Unknown Zone'}
-                          {zone?.type && <span className="ml-2 text-[10px] font-normal text-[#6B7280] dark:text-gray-400 normal-case">{zone.type}</span>}
+              {(() => {
+                let runningIdx = 0
+                return areaGroups.map(area => {
+                  const isCollapsed = collapsed.has(area.name)
+                  return (
+                    <>
+                      {/* Area header — collapse/expand, shows total length */}
+                      <tr key={`area-${area.name}`}
+                        className="bg-[#F9FAFB] dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 cursor-pointer select-none"
+                        onClick={() => toggleArea(area.name)}>
+                        <td colSpan={6 + ACTIVITIES.length + 1} className="px-3 py-2.5 text-left">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2 text-[12px] font-bold text-black dark:text-white">
+                              <span className="inline-block w-3 text-[#6B7280] dark:text-gray-400">{isCollapsed ? '▸' : '▾'}</span>
+                              {area.name}
+                              <span className="text-[10px] font-normal text-[#6B7280] dark:text-gray-400">({area.segs.length})</span>
+                            </span>
+                            <span className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">{fmtN(area.length, 1)} m</span>
+                          </div>
                         </td>
                       </tr>
-                    )}
-                    <tr key={seg.id}
-                      className={`border-t border-gray-50 dark:border-gray-800 ${isSaving ? 'opacity-60' : 'hover:bg-[#FAFAFA] dark:hover:bg-gray-800/30'} transition-colors`}>
-                      <td className="text-center px-3 py-3 text-[#9CA3AF] font-mono text-[10px]">{idx + 1}</td>
-                      <td className="px-3 py-3 font-semibold text-black dark:text-white">{seg.lineNumber || '—'}</td>
-                      <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{seg.fromMH || '—'}</td>
-                      <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{seg.toMH || '—'}</td>
-                      <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300">{seg.diameter ? fmtN(seg.diameter) : '—'}</td>
-                      <td className="px-3 py-3 text-right font-medium text-black dark:text-white">{fmtN(seg.length, 1)}</td>
 
-                      {ACTIVITIES.map((act, actIdx) => {
-                        // Conditionally hide Basecoarse (idx 3) or Asphalt (idx 4)
-                        const hide = (actIdx === 3 && !showBc) || (actIdx === 4 && !showAsp)
-                        if (hide) {
-                          return <td key={act.key} className="px-3 py-3 text-center text-[#D1D5DB] dark:text-gray-700">—</td>
-                        }
-                        const done = isDone(seg, act.key)
+                      {!isCollapsed && area.segs.map(seg => {
+                        runningIdx++
+                        const isSaving = saving === seg.id
+                        const showBc   = (seg.basecourseThickness ?? -1) !== 0
+                        const showAsp  = (seg.asphaltThickness    ?? -1) !== 0
+                        const overall  = seg.overallPct ?? 0
                         return (
-                          <td key={act.key} className="px-3 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={done}
-                              disabled={!canEdit || isSaving}
-                              onChange={e => toggle(seg, actIdx, e.target.checked)}
-                              className="w-4 h-4 rounded cursor-pointer disabled:cursor-default"
-                              style={{ accentColor: act.color }}
-                            />
-                          </td>
+                          <tr key={seg.id}
+                            className={`border-t border-gray-50 dark:border-gray-800 ${isSaving ? 'opacity-60' : 'hover:bg-[#FAFAFA] dark:hover:bg-gray-800/30'} transition-colors`}>
+                            <td className="px-3 py-3 text-[#9CA3AF] font-mono text-[10px]">{runningIdx}</td>
+                            <td className="px-3 py-3 font-semibold text-black dark:text-white">{seg.lineNumber || '—'}</td>
+                            <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{seg.fromMH || '—'}</td>
+                            <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{seg.toMH || '—'}</td>
+                            <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{seg.diameter ? fmtN(seg.diameter) : '—'}</td>
+                            <td className="px-3 py-3 font-medium text-black dark:text-white">{fmtN(seg.length, 1)}</td>
+                            {ACTIVITIES.map((act, actIdx) => {
+                              const hide = (actIdx === 3 && !showBc) || (actIdx === 4 && !showAsp)
+                              if (hide) return <td key={act.key} className="px-3 py-3 text-[#D1D5DB] dark:text-gray-700">—</td>
+                              const done = isDone(seg, act.key)
+                              return (
+                                <td key={act.key} className="px-3 py-3">
+                                  <input type="checkbox" checked={done} disabled={!canEdit || isSaving}
+                                    onChange={e => toggle(seg, actIdx, e.target.checked)}
+                                    className="w-4 h-4 rounded cursor-pointer disabled:cursor-default"
+                                    style={{ accentColor: act.color }} />
+                                </td>
+                              )
+                            })}
+                            <td className="px-3 py-3">
+                              <span className={`text-[11px] font-bold ${
+                                overall >= 100 ? 'text-green-600 dark:text-green-400'
+                                : overall > 0  ? 'text-orange-500'
+                                : 'text-[#9CA3AF] dark:text-gray-500'}`}>
+                                {overall}%
+                              </span>
+                            </td>
+                          </tr>
                         )
                       })}
-
-                      {/* Overall */}
-                      <td className="px-3 py-3 text-center">
-                        <span className={`text-[11px] font-bold ${
-                          overall >= 100 ? 'text-green-600 dark:text-green-400'
-                          : overall > 0  ? 'text-orange-500'
-                          : 'text-[#9CA3AF] dark:text-gray-500'
-                        }`}>
-                          {overall}%
-                        </span>
-                      </td>
-                    </tr>
-                  </>
-                )
-              })}
+                    </>
+                  )
+                })
+              })()}
             </tbody>
             {/* Summary footer */}
             <tfoot>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td colSpan={5} className="px-3 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
+                <td colSpan={5} className="px-3 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider text-left">
                   Total Done (m)
                 </td>
-                <td className="px-3 py-3 text-right text-[12px] font-bold text-black dark:text-white">{fmtN(totalLength, 1)}</td>
+                <td className="px-3 py-3 text-[12px] font-bold text-black dark:text-white">{fmtN(totalLength, 1)}</td>
                 {activityTotals.map((total, i) => (
-                  <td key={i} className="px-3 py-3 text-center">
+                  <td key={i} className="px-3 py-3">
                     <div className="text-[11px] font-bold" style={{ color: ACTIVITIES[i].color }}>{fmtN(total, 1)}</div>
                     <div className="text-[9px] text-[#6B7280] dark:text-gray-400">m</div>
                   </td>
                 ))}
-                <td className="px-3 py-3 text-center text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
+                <td className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
                   {sorted.length > 0 ? Math.round(sorted.reduce((s, seg) => s + (seg.overallPct || 0), 0) / sorted.length) : 0}%
                 </td>
               </tr>
@@ -428,6 +453,9 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
           </table>
         </div>
       )}
+
+      {/* Animated import progress */}
+      <UploadProgressModal state={upload} onClose={() => setUpload(initialUpload)} />
     </div>
   )
 }
