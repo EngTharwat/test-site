@@ -46,17 +46,20 @@ export function zoneColor(type: string, idx = 0): string {
 function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
   const map = useMap()
   useEffect(() => { onZoom(map.getZoom()) }, [map, onZoom])
-  useMapEvents({ zoom: () => onZoom(map.getZoom()) })
+  // Update only after the zoom animation settles. Updating on every "zoom"
+  // tick re-renders the SVG paths mid-animation and makes them appear to
+  // drift; "zoomend" keeps them anchored to their coordinates.
+  useMapEvents({ zoomend: () => onZoom(map.getZoom()) })
   return null
 }
 
 // Map a zoom level to a pixel width that represents a constant ground size.
 // Each +1 zoom doubles the map scale, so the pixel size doubles too.
 const BASE_ZOOM = 16   // reference zoom
-const BASE_PX   = 3    // line width (px) at BASE_ZOOM
+const BASE_PX   = 6    // line width (px) at BASE_ZOOM
 function weightForZoom(zoom: number): number {
   const w = BASE_PX * Math.pow(2, zoom - BASE_ZOOM)
-  return Math.max(1, Math.min(w, 80))   // clamp so it never vanishes or overwhelms
+  return Math.max(2, Math.min(w, 160))   // clamp so it never vanishes or overwhelms
 }
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
@@ -167,15 +170,18 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected }: Props
         )
       })}
 
-      {/* Start/end node circles */}
-      {mapped.map(seg => (
-        <CircleMarker
-          key={`node-${seg.id}`}
-          center={[seg.startLat!, seg.startLng!]}
-          radius={nodeRadius}
-          pathOptions={{ color: seg.zoneColor, fillColor: seg.zoneColor, fillOpacity: 1, weight: 1 }}
-        />
-      ))}
+      {/* A node at BOTH the start and end of every segment */}
+      {mapped.flatMap(seg => {
+        const opacity = selected && selected.id !== seg.id ? 0.4 : 1
+        const opts = {
+          color: seg.zoneColor, fillColor: seg.zoneColor,
+          fillOpacity: opacity, opacity, weight: 1,
+        }
+        return [
+          <CircleMarker key={`start-${seg.id}`} center={[seg.startLat!, seg.startLng!]} radius={nodeRadius} pathOptions={opts} />,
+          <CircleMarker key={`end-${seg.id}`}   center={[seg.endLat!,   seg.endLng!]}   radius={nodeRadius} pathOptions={opts} />,
+        ]
+      })}
     </MapContainer>
   )
 }
