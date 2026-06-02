@@ -422,27 +422,33 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
 
       {/* ── Project Header ──────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              <h1 className="text-xl font-bold text-black dark:text-white tracking-[-0.4px]">{project.name}</h1>
+            {/* Title + badges */}
+            <h1 className="text-lg md:text-xl font-bold text-black dark:text-white tracking-[-0.4px] mb-2 break-words">
+              {project.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <StatusBadge status={project.status} />
               <span className="text-[11px] text-[#6B7280] dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
                 {PROJECT_TYPE_LABELS[project.projectType]}
               </span>
             </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#6B7280] dark:text-gray-400 mb-2">
-              {project.client     && <span>👤 {project.client}</span>}
-              {project.contractor && <span>🏗 {project.contractor}</span>}
-              {project.consultant && <span>📐 {project.consultant}</span>}
-              {project.location   && <span>📍 {project.location}</span>}
+
+            {/* Meta — one item per line on mobile, inline-wrap on desktop */}
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-y-1 sm:gap-x-5 text-[12px] text-[#6B7280] dark:text-gray-400 mb-2">
+              {project.client     && <span className="truncate">👤 {project.client}</span>}
+              {project.contractor && <span className="truncate">🏗 {project.contractor}</span>}
+              {project.consultant && <span className="truncate">📐 {project.consultant}</span>}
+              {project.location   && <span className="truncate">📍 {project.location}</span>}
             </div>
             {project.contractStartDate && project.contractEndDate && (
               <p className="text-[12px] text-[#6B7280] dark:text-gray-400">
-                📅 {project.contractStartDate} → {project.contractEndDate}
+                📅 <span className="whitespace-nowrap">{project.contractStartDate}</span> →{' '}
+                <span className="whitespace-nowrap">{project.contractEndDate}</span>
                 {days !== null && (
-                  <span className={`ml-2 font-semibold ${days < 0 ? 'text-red-500' : days < 30 ? 'text-orange-500' : 'text-[#6B7280] dark:text-gray-400'}`}>
+                  <span className={`ml-2 font-semibold whitespace-nowrap ${days < 0 ? 'text-red-500' : days < 30 ? 'text-orange-500' : 'text-[#6B7280] dark:text-gray-400'}`}>
                     ({days >= 0 ? `${fmtN(days)} days left` : `${fmtN(Math.abs(days))} days overdue`})
                   </span>
                 )}
@@ -450,22 +456,24 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             )}
             {project.description && <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-1">{project.description}</p>}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+
+          {/* Actions — own row on mobile, equal-width tap targets; inline on desktop */}
+          <div className="flex items-center gap-2 flex-shrink-0 border-t md:border-t-0 border-gray-100 dark:border-gray-800 pt-3 md:pt-0">
             {canEdit && (
               <>
                 <button onClick={() => setEditOpen(true)}
-                  className="text-sm font-semibold text-[#374151] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">
+                  className="flex-1 md:flex-none text-sm font-semibold text-[#374151] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">
                   Edit
                 </button>
                 <button onClick={handleDelete} disabled={deleting}
-                  className="text-sm font-semibold text-red-500 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors">
+                  className="flex-1 md:flex-none text-sm font-semibold text-red-500 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors">
                   {deleting ? 'Deleting…' : 'Delete'}
                 </button>
               </>
             )}
             {canSeeZones && (
               <button onClick={() => router.push(`/projects/${projectId}/zones`)}
-                className="text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:bg-[#0F1115] dark:hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
+                className="flex-1 md:flex-none whitespace-nowrap text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:bg-[#0F1115] dark:hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
                 Manage Zones →
               </button>
             )}
