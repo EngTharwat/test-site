@@ -148,8 +148,8 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
     <div className="flex flex-col h-screen overflow-hidden">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <div className="flex items-center justify-between">
+      <div className="flex-shrink-0 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <button onClick={() => router.push(`/projects/${projectId}`)}
               className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-0.5 flex items-center gap-1 transition-colors">
@@ -159,7 +159,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
           </div>
 
           {/* Stats strip */}
-          <div className="flex items-center gap-6 text-[12px] text-[#6B7280] dark:text-gray-400">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:gap-6 text-[12px] text-[#6B7280] dark:text-gray-400">
             <span>
               <span className="font-bold text-black dark:text-white">{filteredMapped.length}</span>
               {' '}mapped segments
@@ -226,7 +226,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
       </div>
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0 gap-0">
+      <div className="flex-1 flex min-h-0 gap-0 relative">
 
         {/* Map */}
         <div className="flex-1 relative min-h-0">
@@ -300,7 +300,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
 
         {/* Side panel: selected segment OR unmapped list */}
         {(selected || showUnmapped) && (
-          <div className="w-72 flex-shrink-0 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto">
+          <div className="absolute md:relative inset-x-0 bottom-0 md:inset-auto z-[1500] md:z-auto w-full md:w-72 flex-shrink-0 max-h-[55%] md:max-h-none border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none">
 
             {/* Selected segment detail */}
             {selected && (

@@ -405,12 +405,12 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   const validBulkCount = bulkRows.filter(r => !r.error).length
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
 
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-6">
         <div>
           <button onClick={() => router.push(`/projects/${projectId}`)}
             className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-1 flex items-center gap-1 transition-colors">
@@ -420,7 +420,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">Individual pipe segments with engineering data</p>
         </div>
         {canEdit && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={downloadTemplate}
               className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               ↓ Template

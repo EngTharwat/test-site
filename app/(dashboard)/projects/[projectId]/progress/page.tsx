@@ -265,12 +265,12 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
   )
 
   return (
-    <div className="p-6 md:p-8 max-w-full mx-auto">
+    <div className="p-4 md:p-8 max-w-full mx-auto">
 
       {/* Header */}
       <div className="mb-6">
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleProgressFile} />
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div>
             <button onClick={() => router.push(`/projects/${projectId}`)}
               className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-1 flex items-center gap-1 transition-colors">
@@ -282,7 +282,7 @@ export default function ProgressPage({ params }: { params: Promise<{ projectId: 
               {!canEdit && <span className="ml-2 text-[11px] text-orange-500">(view only)</span>}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
             <button onClick={exportProgress} disabled={segments.length === 0}
               className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
               title="Download progress as Excel to fill in">
