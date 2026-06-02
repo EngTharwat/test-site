@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
+import { PwaSetup } from "@/lib/pwa";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -9,15 +10,19 @@ const spaceGrotesk = Space_Grotesk({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+export const viewport: Viewport = {
+  themeColor: '#0F1115',
+}
+
 export const metadata: Metadata = {
   title: "PMBoards — Plan. Track. Progress.",
   description: "PMO platform for sewer network projects. Plan, track and control your infrastructure projects.",
-  icons: {
-    icon:      [{ url: '/favicon.svg',           type: 'image/svg+xml' }],
-    apple:     [{ url: '/apple-touch-icon.svg',  type: 'image/svg+xml', sizes: '180x180' }],
-    shortcut:  [{ url: '/favicon.svg',           type: 'image/svg+xml' }],
-  },
   manifest: '/site.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'PMBoards',
+    statusBarStyle: 'black-translucent',
+  },
   openGraph: {
     title:       'PMBoards — Plan. Track. Progress.',
     description: 'PMO platform for sewer network projects.',
@@ -46,6 +51,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-white text-black">
         <AuthProvider>{children}</AuthProvider>
+        <PwaSetup />
       </body>
     </html>
   );

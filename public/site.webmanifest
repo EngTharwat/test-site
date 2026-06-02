@@ -1,22 +1,17 @@
 {
-  "name": "PMBoards",
+  "name": "PMBoards — Plan. Track. Progress.",
   "short_name": "PMBoards",
-  "description": "Plan. Track. Progress. — PMO platform for sewer network projects.",
-  "start_url": "/dashboard",
+  "description": "PMO platform for sewer network projects. Plan, track and control your infrastructure projects.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "theme_color": "#0F1115",
   "background_color": "#0F1115",
   "icons": [
-    {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/apple-touch-icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "180x180"
-    }
+    { "src": "/icon",          "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon",          "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon",          "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg",   "sizes": "any",     "type": "image/svg+xml" }
   ]
 }
