@@ -48,12 +48,12 @@
 
 /* Dark-surface ramp */
 .dark {
-  --brand-neutral-50:  #0a0a0a;
-  --brand-neutral-100: #14161B;
-  --brand-neutral-200: #262A33;
-  --brand-neutral-400: #7C8696;
-  --brand-neutral-600: #A6AEBC;
-  --brand-neutral-900: #F1F5F9;
+  --brand-neutral-50:  #141821;
+  --brand-neutral-100: #1b212c;
+  --brand-neutral-200: #2a323f;
+  --brand-neutral-400: #8A95A6;
+  --brand-neutral-600: #AEB6C4;
+  --brand-neutral-900: #E6EAF2;
   --brand-primary-light:  #16203A;
   --brand-secondary-light:#1E1733;
   --brand-accent-light:   #0A2A30;
@@ -71,9 +71,18 @@ body {
 }
 
 .dark body {
-  background: #0a0a0a;
-  color: #f1f5f9;
+  background: #141821;   /* soft dark slate — lifted off pure black */
+  color: #e6eaf2;
 }
+
+/* ── Softer dark theme ───────────────────────────────────────────────────────
+   Lift the common surfaces one step above the page so cards have real depth
+   instead of melting into a black background. Scoped to .dark with higher
+   specificity than Tailwind's generated utility, so light mode is untouched. */
+.dark .dark\:bg-gray-900 { background-color: #1b212c; }  /* cards            */
+.dark .dark\:bg-gray-800 { background-color: #232b38; }  /* headers / inputs */
+.dark .dark\:border-gray-800 { border-color: #2a323f; }
+.dark .dark\:border-gray-700 { border-color: #353e4d; }
 
 /* ── Blueprint grid background — refreshed to a subtle primary tint ──────────
    Used on /, /login, /register. Matches the "Blueprint Grid" preview pattern. */
@@ -85,10 +94,10 @@ body {
   background-size: 32px 32px;
 }
 .dark .dot-grid {
-  background-color: #0a0a0a;
+  background-color: #141821;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 

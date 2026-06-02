@@ -297,7 +297,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     // Outer shell — dark:bg covers the gutter between sidebar and content
-    <div className="flex h-screen overflow-hidden bg-[#F3F4F6] dark:bg-[#0a0a0a]">
+    <div className="flex h-screen overflow-hidden bg-[#F3F4F6] dark:bg-[#141821]">
 
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
@@ -331,7 +331,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto dark:bg-[#0a0a0a]">
+        <main className="flex-1 overflow-y-auto dark:bg-[#141821]">
           {children}
         </main>
       </div>
