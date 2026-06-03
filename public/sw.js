@@ -1,6 +1,6 @@
 // PMBoards service worker — minimal, safe (network-first, offline fallback).
 // Bump CACHE to invalidate old caches on deploy.
-const CACHE = 'pmboards-v1'
+const CACHE = 'pmboards-v2'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

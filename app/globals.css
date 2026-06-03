@@ -57,6 +57,13 @@
   --brand-primary-light:  #16203A;
   --brand-secondary-light:#1E1733;
   --brand-accent-light:   #0A2A30;
+
+  /* Lift dark-mode surfaces off pure black by re-pointing the Tailwind gray
+     scale these utilities read from (cards / headers / borders). This also
+     covers opacity variants like bg-gray-800/50. Only active under .dark. */
+  --color-gray-900: #1b212c;  /* card backgrounds            */
+  --color-gray-800: #232b38;  /* headers, inputs, hover fills */
+  --color-gray-700: #313a48;  /* borders, dividers           */
 }
 
 *, *::before, *::after {
@@ -74,15 +81,6 @@ body {
   background: #141821;   /* soft dark slate — lifted off pure black */
   color: #e6eaf2;
 }
-
-/* ── Softer dark theme ───────────────────────────────────────────────────────
-   Lift the common surfaces one step above the page so cards have real depth
-   instead of melting into a black background. Scoped to .dark with higher
-   specificity than Tailwind's generated utility, so light mode is untouched. */
-.dark .dark\:bg-gray-900 { background-color: #1b212c; }  /* cards            */
-.dark .dark\:bg-gray-800 { background-color: #232b38; }  /* headers / inputs */
-.dark .dark\:border-gray-800 { border-color: #2a323f; }
-.dark .dark\:border-gray-700 { border-color: #353e4d; }
 
 /* ── Blueprint grid background — refreshed to a subtle primary tint ──────────
    Used on /, /login, /register. Matches the "Blueprint Grid" preview pattern. */

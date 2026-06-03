@@ -17,6 +17,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "PMBoards — Plan. Track. Progress.",
   description: "PMO platform for sewer network projects. Plan, track and control your infrastructure projects.",
+  // Browser tab / shortcut favicon — crisp navy tile + white logo (always visible).
+  // (The installed-app/home-screen icon stays the transparent navy mark via /icon.)
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+  },
   manifest: '/site.webmanifest',
   appleWebApp: {
     capable: true,
