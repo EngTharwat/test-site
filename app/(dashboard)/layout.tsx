@@ -134,7 +134,7 @@ function Sidebar({
     || ((perms?.project_ids ?? []).length > 0)
 
   return (
-    <aside className="w-[220px] flex-shrink-0 bg-[#0F1115] flex flex-col border-r border-white/[0.06] h-screen sticky top-0">
+    <aside className="w-[220px] flex-shrink-0 bg-[#171d28] flex flex-col border-r border-white/[0.06] h-screen sticky top-0">
 
       {/* Logo + portfolio name */}
       <Link href="/dashboard" className="flex items-center gap-2.5 px-4 py-5 border-b border-white/[0.06] hover:opacity-80 transition-opacity">
@@ -284,7 +284,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0F1115]">
+      <div className="h-screen flex items-center justify-center bg-[#171d28]">
         <LogoIcon size={32} />
       </div>
     )
@@ -297,7 +297,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     // Outer shell — dark:bg covers the gutter between sidebar and content
-    <div className="flex h-screen overflow-hidden bg-[#F3F4F6] dark:bg-[#141821]">
+    <div className="flex h-screen overflow-hidden bg-[#F3F4F6] dark:bg-[#1a202c]">
 
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
@@ -317,7 +317,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile top bar */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-[#0F1115] border-b border-white/[0.06]">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-[#171d28] border-b border-white/[0.06]">
           <button onClick={() => setMenuOpen(true)} className="text-white/60 hover:text-white">
             <Icon.Menu />
           </button>
@@ -331,7 +331,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto dark:bg-[#141821]">
+        <main className="flex-1 overflow-y-auto dark:bg-[#1a202c]">
           {children}
         </main>
       </div>

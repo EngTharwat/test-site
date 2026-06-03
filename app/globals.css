@@ -48,22 +48,22 @@
 
 /* Dark-surface ramp */
 .dark {
-  --brand-neutral-50:  #141821;
-  --brand-neutral-100: #1b212c;
-  --brand-neutral-200: #2a323f;
-  --brand-neutral-400: #8A95A6;
-  --brand-neutral-600: #AEB6C4;
-  --brand-neutral-900: #E6EAF2;
-  --brand-primary-light:  #16203A;
-  --brand-secondary-light:#1E1733;
-  --brand-accent-light:   #0A2A30;
+  --brand-neutral-50:  #1a202c;
+  --brand-neutral-100: #232b39;
+  --brand-neutral-200: #3a4555;
+  --brand-neutral-400: #909bad;
+  --brand-neutral-600: #b4bcca;
+  --brand-neutral-900: #eef1f6;
+  --brand-primary-light:  #1b2a4a;
+  --brand-secondary-light:#241c3d;
+  --brand-accent-light:   #0e3138;
 
-  /* Lift dark-mode surfaces off pure black by re-pointing the Tailwind gray
-     scale these utilities read from (cards / headers / borders). This also
-     covers opacity variants like bg-gray-800/50. Only active under .dark. */
-  --color-gray-900: #1b212c;  /* card backgrounds            */
-  --color-gray-800: #232b38;  /* headers, inputs, hover fills */
-  --color-gray-700: #313a48;  /* borders, dividers           */
+  /* Lift dark-mode surfaces well off black by re-pointing the Tailwind gray
+     scale these utilities read from (cards / headers / borders). Also covers
+     opacity variants like bg-gray-800/50. Only active under .dark. */
+  --color-gray-900: #232b39;  /* card backgrounds             */
+  --color-gray-800: #2d3645;  /* headers, inputs, hover fills */
+  --color-gray-700: #3a4555;  /* borders, dividers            */
 }
 
 *, *::before, *::after {
@@ -78,7 +78,7 @@ body {
 }
 
 .dark body {
-  background: #141821;   /* soft dark slate — lifted off pure black */
+  background: #1a202c;   /* comfortable dark slate — clearly off black */
   color: #e6eaf2;
 }
 
@@ -92,7 +92,7 @@ body {
   background-size: 32px 32px;
 }
 .dark .dot-grid {
-  background-color: #141821;
+  background-color: #1a202c;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
