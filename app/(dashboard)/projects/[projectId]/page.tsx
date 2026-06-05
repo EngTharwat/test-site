@@ -32,12 +32,12 @@ function lastActivityColorOV(seg: Segment): string {
   return idx >= 0 ? OV_ACTIVITIES[idx].color : '#9ca3af'
 }
 import {
-  Project, Zone, Segment,
+  Project, Zone, Segment, Permit,
   ProjectStatus, ProjectType, Currency,
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
   CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
-  ZONE_TYPES_BY_PROJECT,
+  ZONE_TYPES_BY_PROJECT, permitExpiryState,
 } from '@/lib/types'
 
 // ── Tiny shared components ────────────────────────────────────────────────────
@@ -319,6 +319,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
   const [segments, setSegments] = useState<Segment[]>([])
+  const [permits,  setPermits]  = useState<Permit[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -342,6 +343,8 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         api.get(`/api/projects/${projectId}/segments`),
       ])
       setProject(proj); setZones(zoneData); setSegments(segData)
+      // Permits are optional (member may lack access) — never block the page.
+      api.get(`/api/projects/${projectId}/permits`).then(setPermits).catch(() => setPermits([]))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -398,6 +401,14 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     ;(zonesByType[t] ??= []).push(z)
   })
   const scopeKeys = Object.keys(zonesByType).sort()
+
+  // Permit stats for the overview KPI
+  const permitStats = {
+    total:    permits.length,
+    active:   permits.filter(p => p.status === 'active').length,
+    expiring: permits.filter(p => permitExpiryState(p.expiryDate) === 'soon').length,
+    expired:  permits.filter(p => permitExpiryState(p.expiryDate) === 'expired').length,
+  }
 
   // Segments with GIS coordinates → embedded map
   const zoneMap = Object.fromEntries(zones.map(z => [z.id, z]))
@@ -497,6 +508,38 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
           sub={days === null ? 'No end date' : days < 0 ? 'Days overdue' : 'Days left'}
           accent={days !== null && days < 0 ? '#ef4444' : days !== null && days < 30 ? '#f97316' : undefined} />
       </div>
+
+      {/* ── Permits summary ──────────────────────────────────────────────── */}
+      {permitStats.total > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">📄 Permits</h2>
+            <button onClick={() => router.push(`/projects/${projectId}/permits`)}
+              className="text-[11px] text-[#2563FF] hover:underline">View all →</button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total',        value: permitStats.total,    accent: undefined as string | undefined },
+              { label: 'Active',       value: permitStats.active,   accent: '#22c55e' },
+              { label: 'Expiring ≤30d',value: permitStats.expiring, accent: permitStats.expiring ? '#f97316' : undefined },
+              { label: 'Expired',      value: permitStats.expired,  accent: permitStats.expired ? '#ef4444' : undefined },
+            ].map(s => (
+              <div key={s.label}>
+                <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">{s.label}</div>
+                <div className="text-2xl font-bold tracking-[-0.5px] dark:text-white" style={{ color: s.accent }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+          {(permitStats.expired > 0 || permitStats.expiring > 0) && (
+            <p className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-3">
+              {permitStats.expired > 0 && <span className="text-red-500 font-semibold">{permitStats.expired} expired</span>}
+              {permitStats.expired > 0 && permitStats.expiring > 0 && ' · '}
+              {permitStats.expiring > 0 && <span className="text-orange-500 font-semibold">{permitStats.expiring} expiring soon</span>}
+              {' — review before excavation continues.'}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Network Map ──────────────────────────────────────────────────── */}
       {mappedSegments.length > 0 && (

@@ -118,6 +118,64 @@ export interface Segment {
   updatedAt?: FirestoreTimestamp
 }
 
+// ── Work Permit ─────────────────────────────────────────────────────────────
+export type PermitStatus     = 'active' | 'amended' | 'cancelled' | 'cleared' | 'pending'
+export type ExcavationStatus = 'not_started' | 'active' | 'cleared'
+
+export interface Permit {
+  id:            string
+  projectId:     string
+  permitNo:      string   // رقم التصريح
+  projectName:   string   // اسم المشروع (free text — copied from sheet)
+  workOrderNo:   string   // رقم أمر العمل
+  serviceAuthority: string // الجهة الخدمية
+  amanah:        string   // الأمانة
+  municipality:  string   // البلدية
+  district:      string   // الحي
+  contractor:    string   // المقاول الرئيسي
+  consultant:    string   // الاستشاري الرئيسي
+  startDate:     string   // تاريخ بدء العمل  'YYYY-MM-DD'
+  permitType:    string   // نوع التصريح
+  status:        PermitStatus      // حالة التصريح
+  excavation:    ExcavationStatus  // حالة الحفرية
+  expiryDate:    string   // تاريخ انتهاء التصريح 'YYYY-MM-DD'
+  createdAt?: FirestoreTimestamp
+  updatedAt?: FirestoreTimestamp
+}
+
+export const PERMIT_STATUSES: PermitStatus[] = ['pending', 'active', 'amended', 'cleared', 'cancelled']
+export const PERMIT_STATUS_LABELS: Record<PermitStatus, string> = {
+  pending:   'Pending',
+  active:    'Active',
+  amended:   'Amended',
+  cleared:   'Cleared',
+  cancelled: 'Cancelled',
+}
+export const PERMIT_STATUS_COLORS: Record<PermitStatus, { bg: string; text: string }> = {
+  pending:   { bg: 'bg-gray-100 dark:bg-gray-800',     text: 'text-gray-600 dark:text-gray-300' },
+  active:    { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
+  amended:   { bg: 'bg-blue-100 dark:bg-blue-900/30',   text: 'text-blue-700 dark:text-blue-300' },
+  cleared:   { bg: 'bg-cyan-100 dark:bg-cyan-900/30',   text: 'text-cyan-700 dark:text-cyan-300' },
+  cancelled: { bg: 'bg-red-100 dark:bg-red-900/30',     text: 'text-red-700 dark:text-red-300' },
+}
+
+export const EXCAVATION_STATUSES: ExcavationStatus[] = ['not_started', 'active', 'cleared']
+export const EXCAVATION_STATUS_LABELS: Record<ExcavationStatus, string> = {
+  not_started: 'Not Started',
+  active:      'Active',
+  cleared:     'Cleared',
+}
+
+/** Permit expiry bucket relative to today. */
+export type ExpiryState = 'none' | 'expired' | 'soon' | 'valid'
+export function permitExpiryState(expiryDate: string, soonDays = 30): ExpiryState {
+  if (!expiryDate) return 'none'
+  const days = daysRemaining(expiryDate)
+  if (days < 0)        return 'expired'
+  if (days <= soonDays) return 'soon'
+  return 'valid'
+}
+
 // ── Cash Flow ─────────────────────────────────────────────────────────────────
 export interface CashFlowRecord {
   id:        string

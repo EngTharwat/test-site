@@ -54,6 +54,13 @@ const Icon = {
       <line x1="6"  y1="20" x2="6"  y2="14"/>
     </svg>
   ),
+  Permits: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <path d="m9 15 2 2 4-4"/>
+    </svg>
+  ),
   Map: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
@@ -221,6 +228,15 @@ function Sidebar({
                 icon={Icon.Progress}
                 label="Progress"
                 active={is(`/projects/${projectId}/progress`)}
+              />
+            )}
+
+            {(isAdmin || (pagePerm && pagePerm.permits !== 'none')) && (
+              <NavItem
+                href={`/projects/${projectId}/permits`}
+                icon={Icon.Permits}
+                label="Permits"
+                active={is(`/projects/${projectId}/permits`)}
               />
             )}
 
