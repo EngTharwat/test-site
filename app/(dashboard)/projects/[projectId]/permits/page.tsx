@@ -48,6 +48,8 @@ const T = {
   save:         { ar: 'حفظ',                  en: 'Save' },
   cancel:       { ar: 'إلغاء',                en: 'Cancel' },
   otherPermit:  { ar: 'مرتبط بتصريح آخر',     en: 'linked to another permit' },
+  linkSheet:    { ar: 'قالب/تصدير الربط',      en: 'Link sheet' },
+  importLinks:  { ar: 'استيراد الربط',         en: 'Import links' },
 }
 
 export default function PermitsPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -87,7 +89,8 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
   const [fDistrict, setFDistrict] = useState('')
 
   // Excel
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef     = useRef<HTMLInputElement>(null)
+  const linkFileRef = useRef<HTMLInputElement>(null)
   const [upload, setUpload] = useState<UploadState>(initialUpload)
 
   const fetchAll = useCallback(async () => {
@@ -175,6 +178,99 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
     setUpload(u => ({ ...u, finished: true }))
     setAssignSaving(false)
     setAssignPermit(null)
+  }
+
+  // ── Link via Excel — one row per SEGMENT (segment-level, not whole line) ────
+  // Columns: Segment ID (exact match) + Line/From/To (readable, also used as a
+  // fallback composite key) + Permit No. (the value to fill / current link).
+  const LINK_COLS: { key: string; ar: string; en: string }[] = [
+    { key: 'segId',      ar: 'معرّف المقطع', en: 'Segment ID' },
+    { key: 'lineNumber', ar: 'رقم الخط',     en: 'Line No.' },
+    { key: 'fromMH',     ar: 'من',           en: 'From MH' },
+    { key: 'toMH',       ar: 'إلى',          en: 'To MH' },
+    { key: 'zone',       ar: 'النطاق',       en: 'Zone' },
+    { key: 'permitNo',   ar: 'رقم التصريح',  en: 'Permit No.' },
+  ]
+
+  async function downloadLinkSheet() {
+    const XLSX = await import('xlsx')
+    const permitNoById = Object.fromEntries(permits.map(p => [p.id, p.permitNo]))
+    const headers = LINK_COLS.map(c => c.ar)
+    const rows = [...segments]
+      .sort((a, b) => (zoneMap[a.zoneId]?.name ?? '').localeCompare(zoneMap[b.zoneId]?.name ?? '', undefined, { numeric: true })
+        || (a.lineNumber ?? '').localeCompare(b.lineNumber ?? '', undefined, { numeric: true }))
+      .map(s => [s.id, s.lineNumber ?? '', s.fromMH ?? '', s.toMH ?? '', zoneLabel(zoneMap[s.zoneId]), s.permitId ? (permitNoById[s.permitId] ?? '') : ''])
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 }, { wch: 16 }]
+    ;(ws as any)['!rtl'] = true
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'ربط')
+    XLSX.writeFile(wb, 'pmboards-permit-links.xlsx')
+  }
+
+  async function handleLinkFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const XLSX = await import('xlsx')
+    const norm = (s: any) => String(s ?? '').trim().replace(/\s+/g, ' ')
+    const key = (l: string, f: string, t: string) => `${norm(l)}|${norm(f)}|${norm(t)}`.toLowerCase()
+
+    const permitByNo = new Map(permits.filter(p => p.permitNo).map(p => [norm(p.permitNo).toLowerCase(), p]))
+    const segById    = new Map(segments.map(s => [s.id, s]))
+    const segByComposite = new Map<string, Segment>()
+    segments.forEach(s => segByComposite.set(key(s.lineNumber, s.fromMH, s.toMH), s))
+
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const wb   = XLSX.read(ev.target!.result, { type: 'binary' })
+      const ws   = wb.Sheets[wb.SheetNames[0]]
+      const grid = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
+      if (grid.length < 2) { setError(lang === 'ar' ? 'الملف فارغ' : 'Empty file'); return }
+
+      const match = (cellVal: string, col: typeof LINK_COLS[number]) => {
+        const n = norm(cellVal).toLowerCase()
+        return n === norm(col.ar).toLowerCase() || n === norm(col.en).toLowerCase()
+      }
+      let hRow = grid.findIndex(r => r.some((c: any) => match(c, LINK_COLS[5])))   // row with رقم التصريح
+      if (hRow < 0) hRow = 0
+      const hdr = grid[hRow]
+      const idx: Record<string, number> = {}
+      LINK_COLS.forEach(c => { const i = hdr.findIndex((_: any, j: number) => match(hdr[j], c)); if (i >= 0) idx[c.key] = i })
+      if (idx.permitNo == null) { setError(lang === 'ar' ? 'تعذّر إيجاد عمود رقم التصريح' : 'No Permit No. column'); return }
+
+      const cell = (row: any[], k: string) => idx[k] != null ? norm(row[idx[k]]) : ''
+      // Resolve which segment a row points to (ID first, else line+from+to)
+      const segOf = (row: any[]): Segment | undefined =>
+        (idx.segId != null && segById.get(cell(row, 'segId')))
+        || segByComposite.get(key(cell(row, 'lineNumber'), cell(row, 'fromMH'), cell(row, 'toMH')))
+
+      // Build the desired permitId per segment; only rows that resolve to a segment count.
+      const changes: { seg: Segment; permitId: string }[] = []
+      for (const row of grid.slice(hRow + 1)) {
+        if (!row.some((c: any) => norm(c))) continue
+        const seg = segOf(row)
+        if (!seg) continue
+        const pno = cell(row, 'permitNo')
+        const permit = pno ? permitByNo.get(pno.toLowerCase()) : null
+        const desired = permit?.id ?? ''               // blank Permit No. → unlink
+        if ((seg.permitId ?? '') !== desired) changes.push({ seg, permitId: desired })
+      }
+      if (!changes.length) { setError(lang === 'ar' ? 'لا توجد تغييرات للربط' : 'No link changes found'); return }
+
+      setUpload({ open: true, title: lang === 'ar' ? 'ربط المقاطع بالإكسيل' : 'Linking via Excel', total: changes.length, done: 0, ok: 0, fail: 0, finished: false })
+      let ok = 0, fail = 0
+      for (const c of changes) {
+        try {
+          const updated = await api.patch(`/api/projects/${projectId}/segments/${c.seg.id}`, { permitId: c.permitId })
+          setSegments(prev => prev.map(s => s.id === c.seg.id ? updated : s))
+          ok++
+        } catch { fail++ }
+        setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
+      }
+      setUpload(u => ({ ...u, finished: true }))
+    }
+    reader.readAsBinaryString(file)
   }
 
   // ── Excel (Balady format) ─────────────────────────────────────────────────
@@ -314,7 +410,8 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto" dir={rtl ? 'rtl' : 'ltr'}>
-      <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+      <input ref={fileRef}     type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+      <input ref={linkFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleLinkFile} />
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-6">
@@ -341,6 +438,11 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
               className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">⬇ {tr('export')}</button>
             <button onClick={() => fileRef.current?.click()}
               className="bg-[#2563FF] text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#1A3FAE] transition-colors">↑ {tr('import')}</button>
+            <span className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
+            <button onClick={downloadLinkSheet} disabled={segments.length === 0}
+              className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors">🔗 {tr('linkSheet')}</button>
+            <button onClick={() => linkFileRef.current?.click()} disabled={segments.length === 0}
+              className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-40 transition-colors">↑ {tr('importLinks')}</button>
           </>}
         </div>
       </div>
