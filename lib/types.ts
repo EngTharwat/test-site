@@ -100,6 +100,8 @@ export interface Segment {
   basecourseThickness?: number
   asphaltThickness?:    number
   surfaceType?:         SurfaceType   // derived from asphaltThickness
+  // Work permit this segment belongs to (one permit per segment)
+  permitId?: string
   // GIS coordinates
   startLat?: number
   startLng?: number

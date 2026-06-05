@@ -6,9 +6,9 @@ import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import {
-  Permit, PermitLang, PERMIT_SHEET_COLUMNS,
+  Permit, Segment, Zone, PermitLang, PERMIT_SHEET_COLUMNS,
   excavationLabel, excavationKind, EXCAV_KIND_COLORS, isHandedOver,
-  permitExpiryState, daysRemaining,
+  permitExpiryState, daysRemaining, fmtN,
 } from '@/lib/types'
 import { UploadProgressModal, type UploadState, initialUpload } from '@/lib/upload-progress'
 
@@ -38,6 +38,16 @@ const T = {
   emptyNone:    { ar: 'لا توجد تصاريح بعد',   en: 'No permits yet' },
   emptyHint:    { ar: 'حمّل القالب، الصق بيانات بلدي، ثم استورد الملف.',
                   en: 'Download the template, paste the Balady data, then import.' },
+  segs:         { ar: 'المقاطع',              en: 'Segments' },
+  link:         { ar: 'ربط',                  en: 'Link' },
+  linkTitle:    { ar: 'ربط المقاطع بالتصريح',  en: 'Link segments to permit' },
+  linkHint:     { ar: 'اختر المقاطع التابعة لهذا التصريح (كل مقطع يتبع تصريحًا واحدًا).',
+                  en: 'Select the segments under this permit (each segment belongs to one permit).' },
+  allZones:     { ar: 'كل النطاقات',          en: 'All Zones' },
+  selected:     { ar: 'مُختار',               en: 'selected' },
+  save:         { ar: 'حفظ',                  en: 'Save' },
+  cancel:       { ar: 'إلغاء',                en: 'Cancel' },
+  otherPermit:  { ar: 'مرتبط بتصريح آخر',     en: 'linked to another permit' },
 }
 
 export default function PermitsPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -58,9 +68,17 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
   const tr = (k: keyof typeof T) => T[k][lang]
   const rtl = lang === 'ar'
 
-  const [permits, setPermits] = useState<Permit[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState('')
+  const [permits,  setPermits]  = useState<Permit[]>([])
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [zones,    setZones]    = useState<Zone[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState('')
+
+  // Segment-linking modal
+  const [assignPermit, setAssignPermit] = useState<Permit | null>(null)
+  const [sel,          setSel]          = useState<Set<string>>(new Set())
+  const [assignZone,   setAssignZone]   = useState('')
+  const [assignSaving, setAssignSaving] = useState(false)
 
   // Filters
   const [search,    setSearch]    = useState('')
@@ -75,6 +93,9 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
   const fetchAll = useCallback(async () => {
     try {
       setPermits(await api.get(`/api/projects/${projectId}/permits`))
+      // Segments + zones power the linking modal; never block the page on them.
+      api.get(`/api/projects/${projectId}/segments`).then(setSegments).catch(() => setSegments([]))
+      api.get(`/api/projects/${projectId}/zones`).then(setZones).catch(() => setZones([]))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load permits')
     } finally {
@@ -109,6 +130,51 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
     expiring:   permits.filter(p => stateOf(p) === 'soon').length,
     expired:    permits.filter(p => stateOf(p) === 'expired').length,
     handedOver: permits.filter(p => stateOf(p) === 'handed_over').length,
+  }
+
+  // ── Segment linking ───────────────────────────────────────────────────────
+  const zoneMap = Object.fromEntries(zones.map(z => [z.id, z]))
+  const zoneLabel = (z?: Zone) => z ? (z.type ? `${z.name} — ${z.type}` : z.name) : '—'
+  const linkedCount = (permitId: string) => segments.filter(s => s.permitId === permitId).length
+
+  function openAssign(p: Permit) {
+    setAssignPermit(p)
+    setAssignZone('')
+    setSel(new Set(segments.filter(s => s.permitId === p.id).map(s => s.id)))
+  }
+
+  const assignSegs = assignPermit
+    ? segments
+        .filter(s => !assignZone || s.zoneId === assignZone)
+        .sort((a, b) => (zoneMap[a.zoneId]?.name ?? '').localeCompare(zoneMap[b.zoneId]?.name ?? '', undefined, { numeric: true })
+          || (a.lineNumber ?? '').localeCompare(b.lineNumber ?? '', undefined, { numeric: true }))
+    : []
+  const selLength = segments.filter(s => sel.has(s.id)).reduce((sum, s) => sum + (s.length || 0), 0)
+
+  async function saveAssign() {
+    if (!assignPermit) return
+    const before = new Set(segments.filter(s => s.permitId === assignPermit.id).map(s => s.id))
+    const toAdd    = [...sel].filter(id => !before.has(id))                 // now linked here
+    const toRemove = [...before].filter(id => !sel.has(id))                 // unlinked here
+    const changes: { id: string; permitId: string }[] = [
+      ...toAdd.map(id => ({ id, permitId: assignPermit.id })),
+      ...toRemove.map(id => ({ id, permitId: '' })),
+    ]
+    if (!changes.length) { setAssignPermit(null); return }
+    setAssignSaving(true)
+    setUpload({ open: true, title: lang === 'ar' ? 'ربط المقاطع' : 'Linking segments', total: changes.length, done: 0, ok: 0, fail: 0, finished: false })
+    let ok = 0, fail = 0
+    for (const c of changes) {
+      try {
+        const updated = await api.patch(`/api/projects/${projectId}/segments/${c.id}`, { permitId: c.permitId })
+        setSegments(prev => prev.map(s => s.id === c.id ? updated : s))
+        ok++
+      } catch { fail++ }
+      setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
+    }
+    setUpload(u => ({ ...u, finished: true }))
+    setAssignSaving(false)
+    setAssignPermit(null)
   }
 
   // ── Excel (Balady format) ─────────────────────────────────────────────────
@@ -341,6 +407,7 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
                 {headers.map(h => (
                   <th key={h} className="px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">{headerLabel(h)}</th>
                 ))}
+                <th className="px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">{tr('segs')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
@@ -353,10 +420,85 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
                   <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.startDate || '—'}</td>
                   <td className="px-3 py-3"><ExcavChip raw={p.excavation} /></td>
                   <td className="px-3 py-3 text-center"><ExpiryCell p={p} /></td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-[11px] font-semibold text-black dark:text-white tabular-nums">{linkedCount(p.id)}</span>
+                      {canEdit && (
+                        <button onClick={() => openAssign(p)}
+                          className="text-[11px] text-[#2563FF] hover:underline whitespace-nowrap">🔗 {tr('link')}</button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Segment-linking modal */}
+      {assignPermit && (
+        <div className="fixed inset-0 z-[1500] bg-black/60 flex items-start justify-center pt-10 px-4 overflow-y-auto"
+             onClick={() => setAssignPermit(null)} dir={rtl ? 'rtl' : 'ltr'}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-2xl mb-10"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h2 className="text-[15px] font-bold text-black dark:text-white">{tr('linkTitle')}</h2>
+                <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-0.5">
+                  {assignPermit.permitNo} · {sel.size} {tr('selected')} · {fmtN(selLength, 1)} m
+                </p>
+              </div>
+              <button onClick={() => setAssignPermit(null)} className="text-[#6B7280] hover:text-black dark:hover:text-white text-xl">×</button>
+            </div>
+
+            <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+              <p className="text-[12px] text-[#6B7280] dark:text-gray-400 flex-1">{tr('linkHint')}</p>
+              {zones.length > 0 && (
+                <select className={filterCls} value={assignZone} onChange={e => setAssignZone(e.target.value)}>
+                  <option value="">{tr('allZones')}</option>
+                  {zones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)}</option>)}
+                </select>
+              )}
+            </div>
+
+            <div className="max-h-[50vh] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
+              {assignSegs.length === 0 ? (
+                <p className="px-6 py-8 text-center text-[13px] text-[#6B7280] dark:text-gray-400">
+                  {lang === 'ar' ? 'لا توجد مقاطع' : 'No segments'}
+                </p>
+              ) : assignSegs.map(s => {
+                const checked = sel.has(s.id)
+                const otherPermit = s.permitId && s.permitId !== assignPermit.id
+                  ? permits.find(p => p.id === s.permitId) : null
+                return (
+                  <label key={s.id} className="flex items-center gap-3 px-6 py-2.5 cursor-pointer hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50">
+                    <input type="checkbox" checked={checked}
+                      onChange={() => setSel(prev => { const n = new Set(prev); checked ? n.delete(s.id) : n.add(s.id); return n })}
+                      className="w-4 h-4 rounded accent-[#2563FF]" />
+                    <span className="text-[12px] font-semibold text-black dark:text-white w-16">{s.lineNumber || '—'}</span>
+                    <span className="text-[11px] text-[#6B7280] dark:text-gray-400 flex-1 truncate">
+                      {zoneLabel(zoneMap[s.zoneId])} · {s.fromMH}→{s.toMH} · {fmtN(s.length || 0, 1)} m
+                    </span>
+                    {otherPermit && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 whitespace-nowrap">
+                        {otherPermit.permitNo} · {tr('otherPermit')}
+                      </span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+              <button onClick={saveAssign} disabled={assignSaving}
+                className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
+                {tr('save')} ({sel.size})
+              </button>
+              <button onClick={() => setAssignPermit(null)}
+                className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">{tr('cancel')}</button>
+            </div>
+          </div>
         </div>
       )}
 
