@@ -37,7 +37,7 @@ import {
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
   CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
-  ZONE_TYPES_BY_PROJECT, permitExpiryState,
+  ZONE_TYPES_BY_PROJECT, permitExpiryState, isHandedOver,
 } from '@/lib/types'
 
 // ── Tiny shared components ────────────────────────────────────────────────────
@@ -402,12 +402,16 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   })
   const scopeKeys = Object.keys(zonesByType).sort()
 
-  // Permit stats for the overview KPI
+  // Permit stats for the overview KPI. Handed-over permits are "finished" —
+  // excluded from expiry buckets and counted on their own.
+  const permitState = (p: Permit) =>
+    isHandedOver(p.excavation) ? 'handed_over' : permitExpiryState(p.expiryDate)
   const permitStats = {
-    total:    permits.length,
-    active:   permits.filter(p => p.status === 'active').length,
-    expiring: permits.filter(p => permitExpiryState(p.expiryDate) === 'soon').length,
-    expired:  permits.filter(p => permitExpiryState(p.expiryDate) === 'expired').length,
+    total:      permits.length,
+    active:     permits.filter(p => permitState(p) === 'valid').length,
+    expiring:   permits.filter(p => permitState(p) === 'soon').length,
+    expired:    permits.filter(p => permitState(p) === 'expired').length,
+    handedOver: permits.filter(p => permitState(p) === 'handed_over').length,
   }
 
   // Segments with GIS coordinates → embedded map
@@ -517,12 +521,13 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             <button onClick={() => router.push(`/projects/${projectId}/permits`)}
               className="text-[11px] text-[#2563FF] hover:underline">View all →</button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              { label: 'Total',        value: permitStats.total,    accent: undefined as string | undefined },
-              { label: 'Active',       value: permitStats.active,   accent: '#22c55e' },
-              { label: 'Expiring ≤30d',value: permitStats.expiring, accent: permitStats.expiring ? '#f97316' : undefined },
-              { label: 'Expired',      value: permitStats.expired,  accent: permitStats.expired ? '#ef4444' : undefined },
+              { label: 'Total',        value: permitStats.total,      accent: undefined as string | undefined },
+              { label: 'Active',       value: permitStats.active,     accent: '#22c55e' },
+              { label: 'Expiring ≤30d',value: permitStats.expiring,   accent: permitStats.expiring ? '#f97316' : undefined },
+              { label: 'Expired',      value: permitStats.expired,    accent: permitStats.expired ? '#ef4444' : undefined },
+              { label: 'Handed Over',  value: permitStats.handedOver, accent: permitStats.handedOver ? '#06b6d4' : undefined },
             ].map(s => (
               <div key={s.label}>
                 <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">{s.label}</div>

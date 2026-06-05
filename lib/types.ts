@@ -142,45 +142,75 @@ export interface Permit {
   updatedAt?: FirestoreTimestamp
 }
 
-// Exact Balady column order + Arabic headers. Single source for the template,
-// export and import header-matching. `key` maps to the Permit field.
-export const PERMIT_SHEET_COLUMNS: { key: keyof Permit; ar: string }[] = [
-  { key: 'permitNo',         ar: 'رقم التصريح' },
-  { key: 'projectName',      ar: 'اسم المشروع' },
-  { key: 'workOrderNo',      ar: 'رقم أمر العمل' },
-  { key: 'serviceAuthority', ar: 'الجهة الخدمية' },
-  { key: 'amanah',           ar: 'الأمانة' },
-  { key: 'municipality',     ar: 'البلدية' },
-  { key: 'district',         ar: 'الحي' },
-  { key: 'contractor',       ar: 'المقاول الرئيسي' },
-  { key: 'consultant',       ar: 'الاستشاري الرئيسي' },
-  { key: 'startDate',        ar: 'تاريخ بدء العمل' },
-  { key: 'permitType',       ar: 'نوع التصريح' },
-  { key: 'status',           ar: 'حالة التصريح' },
-  { key: 'excavation',       ar: 'حالة الحفرية' },
-  { key: 'expiryDate',       ar: 'تاريخ انتهاء التصريح' },
+export type PermitLang = 'ar' | 'en'
+
+// Exact Balady column order + Arabic headers (from the platform sheet) with a
+// temporary English translation. Single source for the template, export and
+// import header-matching, and the bilingual UI. `key` maps to the Permit field.
+export const PERMIT_SHEET_COLUMNS: { key: keyof Permit; ar: string; en: string }[] = [
+  { key: 'permitNo',         ar: 'رقم التصريح',        en: 'Permit No.' },
+  { key: 'projectName',      ar: 'اسم المشروع',        en: 'Project Name' },
+  { key: 'workOrderNo',      ar: 'رقم أمر العمل',      en: 'Work Order No.' },
+  { key: 'serviceAuthority', ar: 'الجهة الخدمية',      en: 'Service Authority' },
+  { key: 'amanah',           ar: 'الأمانة',            en: 'Amanah' },
+  { key: 'municipality',     ar: 'البلدية',            en: 'Municipality' },
+  { key: 'district',         ar: 'الحي',               en: 'District' },
+  { key: 'contractor',       ar: 'المقاول الرئيسي',    en: 'Main Contractor' },
+  { key: 'consultant',       ar: 'الاستشاري الرئيسي',  en: 'Main Consultant' },
+  { key: 'startDate',        ar: 'تاريخ بدء العمل',    en: 'Work Start Date' },
+  { key: 'permitType',       ar: 'نوع التصريح',        en: 'Permit Type' },
+  { key: 'status',           ar: 'حالة التصريح',       en: 'Permit Status' },
+  { key: 'excavation',       ar: 'حالة الحفرية',       en: 'Excavation Status' },
+  { key: 'expiryDate',       ar: 'تاريخ انتهاء التصريح', en: 'Permit Expiry Date' },
 ]
 
-// Common Balady values offered as suggestions in the manual form (free text).
-export const PERMIT_STATUS_SUGGESTIONS     = ['ساري', 'معدّل', 'ملغى', 'منتهي', 'قيد الانتظار']
-export const EXCAVATION_STATUS_SUGGESTIONS = ['لم تبدأ', 'قائمة', 'تمت الإزالة', 'تم الردم']
+// Balady excavation-status values — bilingual (provided by the user).
+export const EXCAVATION_MAP: { ar: string; en: string }[] = [
+  { ar: 'لم يبدأ العمل',                 en: 'Not Started' },
+  { ar: 'تجهيز الموقع وإدخال المعدات',   en: 'Site Preparation' },
+  { ar: 'بدأ الحفر',                     en: 'Started' },
+  { ar: 'إيقاف مؤقت',                    en: 'Temporary Suspension' },
+  { ar: 'مستأنف',                        en: 'Resumed' },
+  { ar: 'تم التمديد',                    en: 'Extended' },
+  { ar: 'انتهت أعمال الحفر',             en: 'Completed' },
+  { ar: 'الغاء أعمال الحفر',             en: 'Cancelled' },
+  { ar: 'تم إخلاء طرف أعمال الحفر',      en: 'Handed Over' },
+]
+export const EXCAVATION_SUGGESTIONS_AR = EXCAVATION_MAP.map(e => e.ar)
 
-// Classify a raw (Arabic or English) permit status to drive chip color + KPIs.
-export type PermitStatusKind = 'active' | 'amended' | 'cancelled' | 'cleared' | 'other'
-export function permitStatusKind(raw: string): PermitStatusKind {
-  const s = (raw || '').toLowerCase()
-  if (/(ملغ|cancel)/.test(s))                         return 'cancelled'
-  if (/(معدّل|معدل|تعديل|amend)/.test(s))             return 'amended'
-  if (/(منته|مغلق|تمت الإزالة|تم الردم|clear|clos|complete|مكتمل)/.test(s)) return 'cleared'
-  if (/(سار|نشط|active|valid)/.test(s))               return 'active'
+const _norm = (s: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+
+/** Translate a raw excavation value (AR or EN) to the requested language. */
+export function excavationLabel(raw: string, lang: PermitLang): string {
+  if (!raw) return ''
+  const n = _norm(raw)
+  const hit = EXCAVATION_MAP.find(e => _norm(e.ar) === n || _norm(e.en) === n)
+  return hit ? hit[lang] : raw   // unknown values pass through unchanged
+}
+
+/** True when the excavation status means the site was handed over (finished). */
+export function isHandedOver(raw: string): boolean {
+  const n = _norm(raw)
+  return n === _norm('تم إخلاء طرف أعمال الحفر') || n === _norm('Handed Over')
+}
+
+/** Colour bucket for an excavation status chip. */
+export type ExcavKind = 'done' | 'active' | 'cancelled' | 'idle' | 'other'
+export function excavationKind(raw: string): ExcavKind {
+  const en = _norm(excavationLabel(raw, 'en'))
+  if (en === 'handed over')                              return 'done'
+  if (en === 'completed' || en === 'extended')          return 'done'
+  if (en === 'cancelled')                                return 'cancelled'
+  if (en === 'started' || en === 'resumed' || en === 'site preparation') return 'active'
+  if (en === 'not started' || en === 'temporary suspension')             return 'idle'
   return 'other'
 }
-export const PERMIT_KIND_COLORS: Record<PermitStatusKind, { bg: string; text: string }> = {
+export const EXCAV_KIND_COLORS: Record<ExcavKind, { bg: string; text: string }> = {
+  done:      { bg: 'bg-cyan-100 dark:bg-cyan-900/30',   text: 'text-cyan-700 dark:text-cyan-300' },
   active:    { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
-  amended:   { bg: 'bg-blue-100 dark:bg-blue-900/30',   text: 'text-blue-700 dark:text-blue-300' },
-  cleared:   { bg: 'bg-cyan-100 dark:bg-cyan-900/30',   text: 'text-cyan-700 dark:text-cyan-300' },
   cancelled: { bg: 'bg-red-100 dark:bg-red-900/30',     text: 'text-red-700 dark:text-red-300' },
-  other:     { bg: 'bg-gray-100 dark:bg-gray-800',      text: 'text-gray-600 dark:text-gray-300' },
+  idle:      { bg: 'bg-gray-100 dark:bg-gray-800',      text: 'text-gray-600 dark:text-gray-300' },
+  other:     { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300' },
 }
 
 /** Permit expiry bucket relative to today. */
