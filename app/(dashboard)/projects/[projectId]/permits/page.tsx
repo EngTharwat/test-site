@@ -189,7 +189,26 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
         return
       }
 
-      const cell = (row: any[], key: keyof Permit) => idx[key] != null ? norm(row[idx[key]!]) : ''
+      const rawCell = (row: any[], key: keyof Permit) => idx[key] != null ? row[idx[key]!] : ''
+      const cell = (row: any[], key: keyof Permit) => norm(rawCell(row, key))
+
+      // Balady exports dates as Excel serial numbers (e.g. 43000). Convert any
+      // numeric/serial value to a real YYYY-MM-DD; pass through real date text.
+      const DATE_KEYS = new Set<keyof Permit>(['startDate', 'expiryDate'])
+      const toDateStr = (v: any): string => {
+        if (v == null || v === '') return ''
+        if (v instanceof Date) {
+          return `${v.getUTCFullYear()}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`
+        }
+        const s = String(v).trim()
+        const n = typeof v === 'number' ? v : (/^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN)
+        if (!Number.isNaN(n) && n > 59 && n < 80000) {            // plausible Excel serial date
+          const d = (XLSX as any).SSF?.parse_date_code(n)
+          if (d && d.y) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`
+        }
+        return s
+      }
+
       const valid = dataRows.filter(r => r.some((c: any) => norm(c)) && cell(r, 'permitNo'))
       if (!valid.length) { setError('لا توجد صفوف تحتوي على رقم تصريح'); return }
 
@@ -197,7 +216,9 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
       let ok = 0, fail = 0
       for (const row of valid) {
         const payload: Record<string, string> = {}
-        FIELD_KEYS.forEach(k => { payload[k] = cell(row, k) })
+        FIELD_KEYS.forEach(k => {
+          payload[k] = DATE_KEYS.has(k) ? toDateStr(rawCell(row, k)) : cell(row, k)
+        })
         const existing = byPermitNo.get(payload.permitNo)
         try {
           if (existing) {
@@ -393,8 +414,8 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
           <table className="w-full text-[12px] text-center whitespace-nowrap">
             <thead>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                {['Permit No.','Project','Work Order','Service','Municipality','District','Contractor','Start','Type','Status','Excavation','Expiry', ''].map((h, i) => (
-                  <th key={i} className="px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                {['رقم التصريح','الأمانة','البلدية','الحي','تاريخ بدء العمل','حالة الحفرية','تاريخ انتهاء التصريح', ''].map((h, i) => (
+                  <th key={i} className="px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -402,16 +423,11 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
               {displayed.map(p => (
                 <tr key={p.id} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
                   <td className="px-3 py-3 font-semibold text-black dark:text-white">{p.permitNo || '—'}</td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300 max-w-[180px] truncate" title={p.projectName}>{p.projectName || '—'}</td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.workOrderNo || '—'}</td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.serviceAuthority || '—'}</td>
+                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.amanah || '—'}</td>
                   <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.municipality || '—'}</td>
                   <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.district || '—'}</td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300 max-w-[150px] truncate" title={p.contractor}>{p.contractor || '—'}</td>
                   <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.startDate || '—'}</td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.permitType || '—'}</td>
-                  <td className="px-3 py-3"><StatusChip s={p.status} /></td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.excavation || '—'}</td>
+                  <td className="px-3 py-3"><StatusChip s={p.excavation} /></td>
                   <td className="px-3 py-3 text-right"><ExpiryChip date={p.expiryDate} /></td>
                   <td className="px-3 py-3">
                     {canEdit && (
