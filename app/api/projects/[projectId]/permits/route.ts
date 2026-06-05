@@ -65,13 +65,10 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const data: Record<string, unknown> = {
       projectId,
-      status:     body.status     ?? 'pending',
-      excavation: body.excavation ?? 'not_started',
       createdAt:  FieldValue.serverTimestamp(),
       updatedAt:  FieldValue.serverTimestamp(),
     }
     for (const f of FIELDS) {
-      if (f === 'status' || f === 'excavation') continue
       data[f] = typeof body[f] === 'string' ? body[f].trim() : (body[f] ?? '')
     }
 

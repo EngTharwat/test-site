@@ -6,9 +6,9 @@ import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import {
-  Permit, PermitStatus, ExcavationStatus,
-  PERMIT_STATUSES, PERMIT_STATUS_LABELS, PERMIT_STATUS_COLORS,
-  EXCAVATION_STATUSES, EXCAVATION_STATUS_LABELS,
+  Permit, PERMIT_SHEET_COLUMNS,
+  PERMIT_STATUS_SUGGESTIONS, EXCAVATION_STATUS_SUGGESTIONS,
+  permitStatusKind, PERMIT_KIND_COLORS,
   permitExpiryState, daysRemaining,
 } from '@/lib/types'
 import { UploadProgressModal, type UploadState, initialUpload } from '@/lib/upload-progress'
@@ -19,28 +19,8 @@ const filterCls = 'border border-gray-200 dark:border-gray-700 rounded-lg px-2.5
 const emptyForm = {
   permitNo: '', projectName: '', workOrderNo: '', serviceAuthority: '',
   amanah: '', municipality: '', district: '', contractor: '', consultant: '',
-  startDate: '', permitType: '', status: 'pending' as PermitStatus,
-  excavation: 'not_started' as ExcavationStatus, expiryDate: '',
+  startDate: '', permitType: '', status: '', excavation: '', expiryDate: '',
 }
-
-// Spreadsheet column headers (English) ↔ form keys, in display order
-const COLS: { key: keyof typeof emptyForm | 'id'; label: string }[] = [
-  { key: 'id',               label: 'ID' },
-  { key: 'permitNo',         label: 'Permit No.' },
-  { key: 'projectName',      label: 'Project Name' },
-  { key: 'workOrderNo',      label: 'Work Order No.' },
-  { key: 'serviceAuthority', label: 'Service Authority' },
-  { key: 'amanah',           label: 'Amanah' },
-  { key: 'municipality',     label: 'Municipality' },
-  { key: 'district',         label: 'District' },
-  { key: 'contractor',       label: 'Main Contractor' },
-  { key: 'consultant',       label: 'Main Consultant' },
-  { key: 'startDate',        label: 'Start Date' },
-  { key: 'permitType',       label: 'Permit Type' },
-  { key: 'status',           label: 'Permit Status' },
-  { key: 'excavation',       label: 'Excavation Status' },
-  { key: 'expiryDate',       label: 'Expiry Date' },
-]
 
 export default function PermitsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
@@ -86,7 +66,9 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const districts = [...new Set(permits.map(p => p.district).filter(Boolean))].sort()
+  const districts   = [...new Set(permits.map(p => p.district).filter(Boolean))].sort()
+  const statusVals  = [...new Set(permits.map(p => p.status).filter(Boolean))].sort()
+  const excavVals   = [...new Set(permits.map(p => p.excavation).filter(Boolean))].sort()
 
   const displayed = permits.filter(p => {
     if (fStatus   && p.status !== fStatus)             return false
@@ -104,7 +86,7 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
   // KPIs
   const kpis = {
     total:    permits.length,
-    active:   permits.filter(p => p.status === 'active').length,
+    active:   permits.filter(p => permitStatusKind(p.status) === 'active').length,
     expiring: permits.filter(p => permitExpiryState(p.expiryDate) === 'soon').length,
     expired:  permits.filter(p => permitExpiryState(p.expiryDate) === 'expired').length,
   }
@@ -153,28 +135,20 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
     }
   }
 
-  // ── Excel ───────────────────────────────────────────────────────────────
-  const HEADERS = COLS.map(c => c.label)
+  // ── Excel — exact Balady (منصة بلدي) format: Arabic headers + order ────────
+  const FIELD_KEYS = PERMIT_SHEET_COLUMNS.map(c => c.key as keyof Permit)
+  const HEADERS    = PERMIT_SHEET_COLUMNS.map(c => c.ar)
 
   async function exportXlsx(blankTemplate = false) {
     const XLSX = await import('xlsx')
     const rows = blankTemplate
-      ? [['', 'TR-001', 'Project name', 'WO-001', 'NWC', 'Al-Ahsa', 'Al-Hofuf', 'Al-Naseem',
-          'Main Contractor', 'Main Consultant', '2025-01-01', 'New', 'active', 'not_started', '2025-12-31']]
-      : displayed.map(p => [
-          p.id, p.permitNo, p.projectName, p.workOrderNo, p.serviceAuthority, p.amanah, p.municipality,
-          p.district, p.contractor, p.consultant, p.startDate, p.permitType, p.status, p.excavation, p.expiryDate,
-        ])
+      ? [] as any[][]   // headers only — paste the Balady download underneath
+      : displayed.map(p => FIELD_KEYS.map(k => (p as any)[k] ?? ''))
     const ws = XLSX.utils.aoa_to_sheet([HEADERS, ...rows])
-    ws['!cols'] = HEADERS.map(() => ({ wch: 18 }))
+    ws['!cols']    = HEADERS.map(() => ({ wch: 18 }))
+    ws['!rtl']     = true   // right-to-left sheet to match Balady
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Permits')
-    // Reference sheet for status values
-    const ref = XLSX.utils.aoa_to_sheet([
-      ['Permit Status', 'Excavation Status'],
-      ...PERMIT_STATUSES.map((s, i) => [s, EXCAVATION_STATUSES[i] ?? '']),
-    ])
-    XLSX.utils.book_append_sheet(wb, ref, 'Allowed Values')
+    XLSX.utils.book_append_sheet(wb, ws, 'تصاريح')
     XLSX.writeFile(wb, blankTemplate
       ? 'pmboards-permits-template.xlsx'
       : `pmboards-permits-${new Date().toISOString().slice(0,10)}.xlsx`)
@@ -185,57 +159,54 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
     if (!file) return
     e.target.value = ''
     const XLSX = await import('xlsx')
-    const byId = new Map(permits.map(p => [p.id, p]))
+    // Match existing permits by Permit No. (رقم التصريح) — the Balady unique key
+    const byPermitNo = new Map(permits.filter(p => p.permitNo).map(p => [p.permitNo.trim(), p]))
+
+    const norm = (s: any) => String(s ?? '').trim().replace(/\s+/g, ' ')
 
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const wb   = XLSX.read(ev.target!.result, { type: 'binary' })
       const ws   = wb.Sheets[wb.SheetNames[0]]
       const grid = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
-      if (grid.length < 2) { setError('File has no data rows'); return }
+      if (grid.length < 2) { setError('الملف لا يحتوي على بيانات / File has no data rows'); return }
 
-      const [hdr, ...dataRows] = grid
-      // Map each spreadsheet column to a form key by matching the header label
-      const idx: Record<string, number> = {}
-      COLS.forEach(c => {
-        const i = hdr.findIndex((_: any, j: number) =>
-          String(hdr[j]).trim().toLowerCase() === c.label.toLowerCase())
+      // Find the header row (Balady files sometimes have a title row first):
+      // pick the first row that contains رقم التصريح.
+      let headerRowIdx = grid.findIndex(r => r.some((c: any) => norm(c) === 'رقم التصريح'))
+      if (headerRowIdx < 0) headerRowIdx = 0
+      const hdr = grid[headerRowIdx]
+      const dataRows = grid.slice(headerRowIdx + 1)
+
+      // Map each column index to a Permit field by matching the Arabic header.
+      const idx: Partial<Record<keyof Permit, number>> = {}
+      PERMIT_SHEET_COLUMNS.forEach(c => {
+        const i = hdr.findIndex((_: any, j: number) => norm(hdr[j]) === c.ar)
         if (i >= 0) idx[c.key] = i
       })
-
-      const cell = (row: any[], key: string) => idx[key] != null ? String(row[idx[key]] ?? '').trim() : ''
-      const normStatus = (v: string): PermitStatus => {
-        const s = v.toLowerCase()
-        return (PERMIT_STATUSES as string[]).includes(s) ? s as PermitStatus : 'pending'
-      }
-      const normExcav = (v: string): ExcavationStatus => {
-        const s = v.toLowerCase().replace(/\s+/g, '_')
-        return (EXCAVATION_STATUSES as string[]).includes(s) ? s as ExcavationStatus : 'not_started'
+      if (idx.permitNo == null) {
+        setError('تعذّر إيجاد عمود "رقم التصريح" — تأكد أن الملف من منصة بلدي')
+        return
       }
 
-      const valid = dataRows.filter(r => r.some((c: any) => String(c).trim()) && cell(r, 'permitNo'))
-      if (!valid.length) { setError('No rows with a Permit No. found'); return }
+      const cell = (row: any[], key: keyof Permit) => idx[key] != null ? norm(row[idx[key]!]) : ''
+      const valid = dataRows.filter(r => r.some((c: any) => norm(c)) && cell(r, 'permitNo'))
+      if (!valid.length) { setError('لا توجد صفوف تحتوي على رقم تصريح'); return }
 
-      setUpload({ open: true, title: 'Importing permits', total: valid.length, done: 0, ok: 0, fail: 0, finished: false })
+      setUpload({ open: true, title: 'استيراد التصاريح', total: valid.length, done: 0, ok: 0, fail: 0, finished: false })
       let ok = 0, fail = 0
       for (const row of valid) {
-        const id = cell(row, 'id')
-        const payload = {
-          permitNo: cell(row, 'permitNo'), projectName: cell(row, 'projectName'),
-          workOrderNo: cell(row, 'workOrderNo'), serviceAuthority: cell(row, 'serviceAuthority'),
-          amanah: cell(row, 'amanah'), municipality: cell(row, 'municipality'), district: cell(row, 'district'),
-          contractor: cell(row, 'contractor'), consultant: cell(row, 'consultant'),
-          startDate: cell(row, 'startDate'), permitType: cell(row, 'permitType'),
-          status: normStatus(cell(row, 'status')), excavation: normExcav(cell(row, 'excavation')),
-          expiryDate: cell(row, 'expiryDate'),
-        }
+        const payload: Record<string, string> = {}
+        FIELD_KEYS.forEach(k => { payload[k] = cell(row, k) })
+        const existing = byPermitNo.get(payload.permitNo)
         try {
-          if (id && byId.has(id)) {
-            const updated = await api.patch(`/api/projects/${projectId}/permits/${id}`, payload)
-            setPermits(prev => prev.map(p => p.id === id ? updated : p))
+          if (existing) {
+            const updated = await api.patch(`/api/projects/${projectId}/permits/${existing.id}`, payload)
+            setPermits(prev => prev.map(p => p.id === existing.id ? updated : p))
           } else {
             const created = await api.post(`/api/projects/${projectId}/permits`, payload)
             setPermits(prev => [...prev, created])
+            byPermitNo.set(payload.permitNo, created)
           }
           ok++
         } catch { fail++ }
@@ -247,9 +218,11 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
   }
 
   // ── Chips ───────────────────────────────────────────────────────────────
-  function StatusChip({ s }: { s: PermitStatus }) {
-    const c = PERMIT_STATUS_COLORS[s] ?? PERMIT_STATUS_COLORS.pending
-    return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>{PERMIT_STATUS_LABELS[s] ?? s}</span>
+  // Show the raw Balady text, coloured by classified kind.
+  function StatusChip({ s }: { s: string }) {
+    if (!s) return <span className="text-[#9CA3AF]">—</span>
+    const c = PERMIT_KIND_COLORS[permitStatusKind(s)]
+    return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>{s}</span>
   }
   function ExpiryChip({ date }: { date: string }) {
     const st = permitExpiryState(date)
@@ -348,16 +321,18 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
               <input className={inputCls} type="date" value={form.expiryDate} onChange={set('expiryDate')} />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Permit Status</label>
-              <select className={inputCls} value={form.status} onChange={set('status')}>
-                {PERMIT_STATUSES.map(s => <option key={s} value={s}>{PERMIT_STATUS_LABELS[s]}</option>)}
-              </select>
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">حالة التصريح · Permit Status</label>
+              <input className={inputCls} list="permit-status-list" value={form.status} onChange={set('status')} placeholder="ساري" />
+              <datalist id="permit-status-list">
+                {PERMIT_STATUS_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+              </datalist>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Excavation Status</label>
-              <select className={inputCls} value={form.excavation} onChange={set('excavation')}>
-                {EXCAVATION_STATUSES.map(s => <option key={s} value={s}>{EXCAVATION_STATUS_LABELS[s]}</option>)}
-              </select>
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">حالة الحفرية · Excavation Status</label>
+              <input className={inputCls} list="excav-status-list" value={form.excavation} onChange={set('excavation')} placeholder="قائمة" />
+              <datalist id="excav-status-list">
+                {EXCAVATION_STATUS_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+              </datalist>
             </div>
           </div>
           {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
@@ -379,11 +354,11 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
         <input className={filterCls} style={{ width: 160 }} placeholder="Search permit / project…" value={search} onChange={e => setSearch(e.target.value)} />
         <select className={filterCls} value={fStatus} onChange={e => setFStatus(e.target.value)}>
           <option value="">All Statuses</option>
-          {PERMIT_STATUSES.map(s => <option key={s} value={s}>{PERMIT_STATUS_LABELS[s]}</option>)}
+          {statusVals.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select className={filterCls} value={fExcav} onChange={e => setFExcav(e.target.value)}>
           <option value="">All Excavation</option>
-          {EXCAVATION_STATUSES.map(s => <option key={s} value={s}>{EXCAVATION_STATUS_LABELS[s]}</option>)}
+          {excavVals.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select className={filterCls} value={fExpiry} onChange={e => setFExpiry(e.target.value)}>
           <option value="">All Expiry</option>
@@ -436,7 +411,7 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
                   <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.startDate || '—'}</td>
                   <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.permitType || '—'}</td>
                   <td className="px-3 py-3"><StatusChip s={p.status} /></td>
-                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{EXCAVATION_STATUS_LABELS[p.excavation] ?? '—'}</td>
+                  <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{p.excavation || '—'}</td>
                   <td className="px-3 py-3 text-right"><ExpiryChip date={p.expiryDate} /></td>
                   <td className="px-3 py-3">
                     {canEdit && (

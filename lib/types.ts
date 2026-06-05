@@ -118,52 +118,69 @@ export interface Segment {
   updatedAt?: FirestoreTimestamp
 }
 
-// ── Work Permit ─────────────────────────────────────────────────────────────
-export type PermitStatus     = 'active' | 'amended' | 'cancelled' | 'cleared' | 'pending'
-export type ExcavationStatus = 'not_started' | 'active' | 'cleared'
-
+// ── Work Permit (منصة بلدي / Balady) ──────────────────────────────────────────
+// Status / excavation are stored as the RAW value from Balady (Arabic) so an
+// exported permit sheet matches the platform download exactly.
 export interface Permit {
-  id:            string
-  projectId:     string
-  permitNo:      string   // رقم التصريح
-  projectName:   string   // اسم المشروع (free text — copied from sheet)
-  workOrderNo:   string   // رقم أمر العمل
-  serviceAuthority: string // الجهة الخدمية
-  amanah:        string   // الأمانة
-  municipality:  string   // البلدية
-  district:      string   // الحي
-  contractor:    string   // المقاول الرئيسي
-  consultant:    string   // الاستشاري الرئيسي
-  startDate:     string   // تاريخ بدء العمل  'YYYY-MM-DD'
-  permitType:    string   // نوع التصريح
-  status:        PermitStatus      // حالة التصريح
-  excavation:    ExcavationStatus  // حالة الحفرية
-  expiryDate:    string   // تاريخ انتهاء التصريح 'YYYY-MM-DD'
+  id:               string
+  projectId:        string
+  permitNo:         string   // رقم التصريح
+  projectName:      string   // اسم المشروع
+  workOrderNo:      string   // رقم أمر العمل
+  serviceAuthority: string   // الجهة الخدمية
+  amanah:           string   // الأمانة
+  municipality:     string   // البلدية
+  district:         string   // الحي
+  contractor:       string   // المقاول الرئيسي
+  consultant:       string   // الاستشاري الرئيسي
+  startDate:        string   // تاريخ بدء العمل
+  permitType:       string   // نوع التصريح
+  status:           string   // حالة التصريح  (raw text)
+  excavation:       string   // حالة الحفرية  (raw text)
+  expiryDate:       string   // تاريخ انتهاء التصريح
   createdAt?: FirestoreTimestamp
   updatedAt?: FirestoreTimestamp
 }
 
-export const PERMIT_STATUSES: PermitStatus[] = ['pending', 'active', 'amended', 'cleared', 'cancelled']
-export const PERMIT_STATUS_LABELS: Record<PermitStatus, string> = {
-  pending:   'Pending',
-  active:    'Active',
-  amended:   'Amended',
-  cleared:   'Cleared',
-  cancelled: 'Cancelled',
+// Exact Balady column order + Arabic headers. Single source for the template,
+// export and import header-matching. `key` maps to the Permit field.
+export const PERMIT_SHEET_COLUMNS: { key: keyof Permit; ar: string }[] = [
+  { key: 'permitNo',         ar: 'رقم التصريح' },
+  { key: 'projectName',      ar: 'اسم المشروع' },
+  { key: 'workOrderNo',      ar: 'رقم أمر العمل' },
+  { key: 'serviceAuthority', ar: 'الجهة الخدمية' },
+  { key: 'amanah',           ar: 'الأمانة' },
+  { key: 'municipality',     ar: 'البلدية' },
+  { key: 'district',         ar: 'الحي' },
+  { key: 'contractor',       ar: 'المقاول الرئيسي' },
+  { key: 'consultant',       ar: 'الاستشاري الرئيسي' },
+  { key: 'startDate',        ar: 'تاريخ بدء العمل' },
+  { key: 'permitType',       ar: 'نوع التصريح' },
+  { key: 'status',           ar: 'حالة التصريح' },
+  { key: 'excavation',       ar: 'حالة الحفرية' },
+  { key: 'expiryDate',       ar: 'تاريخ انتهاء التصريح' },
+]
+
+// Common Balady values offered as suggestions in the manual form (free text).
+export const PERMIT_STATUS_SUGGESTIONS     = ['ساري', 'معدّل', 'ملغى', 'منتهي', 'قيد الانتظار']
+export const EXCAVATION_STATUS_SUGGESTIONS = ['لم تبدأ', 'قائمة', 'تمت الإزالة', 'تم الردم']
+
+// Classify a raw (Arabic or English) permit status to drive chip color + KPIs.
+export type PermitStatusKind = 'active' | 'amended' | 'cancelled' | 'cleared' | 'other'
+export function permitStatusKind(raw: string): PermitStatusKind {
+  const s = (raw || '').toLowerCase()
+  if (/(ملغ|cancel)/.test(s))                         return 'cancelled'
+  if (/(معدّل|معدل|تعديل|amend)/.test(s))             return 'amended'
+  if (/(منته|مغلق|تمت الإزالة|تم الردم|clear|clos|complete|مكتمل)/.test(s)) return 'cleared'
+  if (/(سار|نشط|active|valid)/.test(s))               return 'active'
+  return 'other'
 }
-export const PERMIT_STATUS_COLORS: Record<PermitStatus, { bg: string; text: string }> = {
-  pending:   { bg: 'bg-gray-100 dark:bg-gray-800',     text: 'text-gray-600 dark:text-gray-300' },
+export const PERMIT_KIND_COLORS: Record<PermitStatusKind, { bg: string; text: string }> = {
   active:    { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
   amended:   { bg: 'bg-blue-100 dark:bg-blue-900/30',   text: 'text-blue-700 dark:text-blue-300' },
   cleared:   { bg: 'bg-cyan-100 dark:bg-cyan-900/30',   text: 'text-cyan-700 dark:text-cyan-300' },
   cancelled: { bg: 'bg-red-100 dark:bg-red-900/30',     text: 'text-red-700 dark:text-red-300' },
-}
-
-export const EXCAVATION_STATUSES: ExcavationStatus[] = ['not_started', 'active', 'cleared']
-export const EXCAVATION_STATUS_LABELS: Record<ExcavationStatus, string> = {
-  not_started: 'Not Started',
-  active:      'Active',
-  cleared:     'Cleared',
+  other:     { bg: 'bg-gray-100 dark:bg-gray-800',      text: 'text-gray-600 dark:text-gray-300' },
 }
 
 /** Permit expiry bucket relative to today. */
