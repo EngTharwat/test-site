@@ -64,9 +64,13 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   const [bulkResult, setBulkResult] = useState<{ ok: number; fail: number } | null>(null)
   const [upload,     setUpload]     = useState<UploadState>(initialUpload)
 
+  // Row selection (by segment id) + bulk delete
+  const [selected,    setSelected]    = useState<Set<string>>(new Set())
+  const [deletingBulk, setDeletingBulk] = useState(false)
+
   // Collapsed areas (by zone name)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  const toggleArea = (name: string) => setCollapsed(prev => {
+  const toggleCollapse = (name: string) => setCollapsed(prev => {
     const next = new Set(prev)
     next.has(name) ? next.delete(name) : next.add(name)
     return next
@@ -354,9 +358,47 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
     try {
       await api.delete(`/api/projects/${projectId}/segments/${segId}`)
       setSegments(prev => prev.filter(s => s.id !== segId))
+      setSelected(prev => { const n = new Set(prev); n.delete(segId); return n })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to delete')
     }
+  }
+
+  // ── Selection ─────────────────────────────────────────────────────────────
+  const toggleSel = (id: string) =>
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  const toggleArea = (ids: string[]) =>
+    setSelected(prev => {
+      const n = new Set(prev)
+      const allOn = ids.every(id => n.has(id))
+      ids.forEach(id => allOn ? n.delete(id) : n.add(id))
+      return n
+    })
+
+  const displayedIds = displayed.map(s => s.id)
+  const allSelected  = displayedIds.length > 0 && displayedIds.every(id => selected.has(id))
+  const toggleSelectAll = () =>
+    setSelected(allSelected ? new Set() : new Set(displayedIds))
+
+  async function deleteSelected() {
+    const ids = displayed.filter(s => selected.has(s.id)).map(s => s.id)
+    if (!ids.length) return
+    if (!confirm(`Delete ${ids.length} selected segment${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    setDeletingBulk(true)
+    setUpload({ open: true, title: 'Deleting segments', total: ids.length, done: 0, ok: 0, fail: 0, finished: false })
+    let ok = 0, fail = 0
+    for (const id of ids) {
+      try {
+        await api.delete(`/api/projects/${projectId}/segments/${id}`)
+        setSegments(prev => prev.filter(s => s.id !== id))
+        ok++
+      } catch { fail++ }
+      setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
+    }
+    setUpload(u => ({ ...u, finished: true }))
+    setSelected(new Set())
+    setDeletingBulk(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -642,6 +684,23 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
         </div>
       )}
 
+      {/* Bulk action bar — shown when rows are selected */}
+      {canEdit && selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-[#2563FF]/10 dark:bg-blue-900/20 border border-[#2563FF]/30 rounded-xl">
+          <span className="text-[13px] font-semibold text-black dark:text-white">
+            {selected.size} selected
+          </span>
+          <button onClick={deleteSelected} disabled={deletingBulk}
+            className="text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 px-3.5 py-1.5 rounded-lg disabled:opacity-50 transition-colors">
+            🗑 Delete selected
+          </button>
+          <button onClick={() => setSelected(new Set())}
+            className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />)}</div>
@@ -656,6 +715,12 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
           <table className="w-full text-[12px] text-center">
             <thead>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                {canEdit && (
+                  <th className="px-3 py-3 w-8">
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                      title="Select all" className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
+                  </th>
+                )}
                 {['Line','From → To','Ø mm','Len m','Material','Surface',
                   ...ACTIVITY_KEYS.map(a => a.label.slice(0,5)), ''].map((h, i) => (
                   <th key={i} className="px-3 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">
@@ -669,11 +734,20 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                 const isCollapsed = collapsed.has(area.name)
                 return (
                   <>
-                    {/* Area header — click to collapse/expand */}
+                    {/* Area header — checkbox selects the area; click toggles collapse */}
                     <tr key={`area-${area.name}`}
-                      className="bg-[#F9FAFB] dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 cursor-pointer select-none"
-                      onClick={() => toggleArea(area.name)}>
-                      <td colSpan={7 + ACTIVITY_KEYS.length} className="px-3 py-2.5 text-left">
+                      className="bg-[#F9FAFB] dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 select-none">
+                      {canEdit && (
+                        <td className="px-3 py-2.5 w-8">
+                          <input type="checkbox"
+                            checked={area.segs.length > 0 && area.segs.every(s => selected.has(s.id))}
+                            onChange={() => toggleArea(area.segs.map(s => s.id))}
+                            title="Select area"
+                            className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
+                        </td>
+                      )}
+                      <td colSpan={7 + ACTIVITY_KEYS.length} className="px-3 py-2.5 text-left cursor-pointer"
+                        onClick={() => toggleCollapse(area.name)}>
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-2 text-[12px] font-bold text-black dark:text-white">
                             <span className="inline-block w-3 text-[#6B7280] dark:text-gray-400">{isCollapsed ? '▸' : '▾'}</span>
@@ -693,7 +767,13 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
                     {!isCollapsed && area.segs.map(seg => {
                       const zone = zoneMap[seg.zoneId]
                       return (
-                        <tr key={seg.id} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50 transition-colors">
+                        <tr key={seg.id} className={`transition-colors ${selected.has(seg.id) ? 'bg-[#2563FF]/5 dark:bg-blue-900/20' : 'hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50'}`}>
+                          {canEdit && (
+                            <td className="px-3 py-3 w-8">
+                              <input type="checkbox" checked={selected.has(seg.id)} onChange={() => toggleSel(seg.id)}
+                                className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
+                            </td>
+                          )}
                           <td className="px-3 py-3 font-semibold text-black dark:text-white">
                             {seg.lineNumber || '—'}
                             {zone?.type && <div className="text-[9px] font-normal text-[#9CA3AF] dark:text-gray-500">{zone.type}</div>}
@@ -729,6 +809,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
             </tbody>
             <tfoot>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
+                {canEdit && <td />}
                 <td className="px-3 py-3 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider text-left">
                   Total ({displayed.length})
                 </td>
