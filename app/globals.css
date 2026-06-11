@@ -121,6 +121,22 @@ body {
     rgba(255,255,255,0.04) 0 3px, transparent 3px 20px);
 }
 
+/* Blueprint band — dashboard hero (grid lines on a drawing-sheet field).
+   Node markers in the pipeline match these background colors. */
+.blueprint-card {
+  background-color: #F4F8FF;
+  background-image:
+    linear-gradient(rgba(37, 99, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(to right, rgba(37, 99, 255, 0.09) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.dark .blueprint-card {
+  background-color: #1e2737;
+  background-image:
+    linear-gradient(rgba(123, 162, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(to right, rgba(123, 162, 255, 0.07) 1px, transparent 1px);
+}
+
 /* Make native browser chrome (selects, date pickers) dark in dark mode */
 .dark select,
 .dark input[type="date"],
