@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<!--
+  PMBoards — PORTFOLIO DASHBOARD · PREVIEW ONLY (no app files changed)
+  Proposed redesign of /dashboard with KPIs + visualizations.
+  Demo data modelled on the real Al-Ahsa / Bin Delamah projects.
+  Charts are inline SVG (no libraries) — same approach used in the app.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PMBoards — Portfolio Dashboard Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#1a202c; --card:#232b39; --card2:#2d3645; --border:#3a4555;
+    --ink:#eef1f6; --muted:#aeb6c4; --dim:#8a95a6;
+    --blue:#2563FF; --violet:#7C3AED; --green:#22c55e; --orange:#f97316;
+    --cyan:#06b6d4; --red:#ef4444; --yellow:#eab308;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Space Grotesk',Arial,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px}
+  .preview-tag{display:inline-block;background:var(--blue);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;margin-bottom:14px}
+
+  .head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
+  .head h1{font-size:26px;font-weight:700;letter-spacing:-.6px}
+  .head p{color:var(--muted);font-size:13px;margin-top:3px}
+  .head .new{background:#fff;color:#0F1115;font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px}
+
+  /* KPI cards */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+  .kpi .l{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--dim);display:flex;justify-content:space-between;align-items:center}
+  .kpi .v{font-size:23px;font-weight:700;letter-spacing:-.5px;margin-top:7px;line-height:1}
+  .kpi .s{font-size:11px;color:var(--muted);margin-top:6px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+  @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
+  .panel h2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+  .legend{display:flex;flex-direction:column;gap:9px}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:12px}
+  .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .legend .row b{margin-left:auto;font-weight:700}
+
+  /* horizontal progress bars */
+  .pbar{margin-bottom:13px}
+  .pbar .t{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+  .pbar .t .nm{color:var(--ink);font-weight:500;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pbar .t .pc{color:var(--muted);font-weight:700}
+  .track{height:8px;background:var(--card2);border-radius:999px;overflow:hidden}
+  .track > i{display:block;height:100%;border-radius:999px}
+
+  /* value bars (vertical) */
+  .vbars{display:flex;align-items:flex-end;gap:14px;height:150px;padding-top:8px}
+  .vbars .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .vbars .bar{width:100%;max-width:46px;border-radius:8px 8px 0 0;background:var(--blue)}
+  .vbars .cap{font-size:9.5px;color:var(--dim);text-align:center}
+  .vbars .val{font-size:10px;font-weight:700;color:var(--ink)}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);text-align:left;padding:9px 10px;border-bottom:1px solid var(--border)}
+  td{padding:11px 10px;border-bottom:1px solid #2a3340}
+  .badge{font-size:9.5px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .b-active{background:rgba(34,197,94,.16);color:#4ade80}
+  .b-plan{background:rgba(138,149,166,.18);color:#cbd5e1}
+  .b-done{background:rgba(37,99,255,.18);color:#7aa2ff}
+  .mini{height:6px;background:var(--card2);border-radius:999px;overflow:hidden;width:90px}
+  .mini > i{display:block;height:100%;border-radius:999px}
+  .note{font-size:11px;color:var(--dim);margin-top:18px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="preview-tag">PREVIEW · demo data · nothing applied yet</span>
+
+  <div class="head">
+    <div>
+      <h1>Portfolio</h1>
+      <p>Bin Delamah Contracting Company · all active and planned projects</p>
+    </div>
+    <div class="new">+ New Project</div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- ROW: status donut + completion bars -->
+  <div class="grid3">
+    <div class="panel">
+      <h2>Projects by Status</h2>
+      <div style="display:flex;align-items:center;gap:18px">
+        <div id="statusDonut"></div>
+        <div class="legend" id="statusLegend"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Network by Type</h2>
+      <div style="display:flex;align-items:center;gap:18px">
+        <div id="typeDonut"></div>
+        <div class="legend" id="typeLegend"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Permits (portfolio)</h2>
+      <div style="display:flex;align-items:center;gap:18px">
+        <div id="permitDonut"></div>
+        <div class="legend" id="permitLegend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW: completion bars + contract value bars -->
+  <div class="grid2">
+    <div class="panel">
+      <h2>Completion by Project</h2>
+      <div id="completion"></div>
+    </div>
+    <div class="panel">
+      <h2>Contract Value by Project <span style="color:var(--dim);font-weight:600">SAR (millions)</span></h2>
+      <div class="vbars" id="valueBars"></div>
+    </div>
+  </div>
+
+  <!-- PROJECT TABLE -->
+  <div class="panel">
+    <h2>Projects <span style="color:var(--dim);font-weight:600">4 total</span></h2>
+    <table id="projTable"></table>
+  </div>
+
+  <p class="note">This is a static preview with demo numbers. On approval it becomes the live /dashboard, wired to your real project data (and portfolio-wide permit/segment aggregates).</p>
+</div>
+
+<script>
+const fmtM = n => (n/1e6).toFixed(1)
+const projects = [
+  { name:'Al-Ahsa Villages Sewer — 5th Phase (P1)', client:'National Water Company', type:'Sewer Network', status:'active',    value:86679574, km:94.7, pct:41 },
+  { name:'Al-Hufuf & Al-Mubarraz Completion',        client:'National Water Company', type:'Sewer Network', status:'active',    value:45500000, km:28.2, pct:67 },
+  { name:'Al-Naseem District Expansion',             client:'NWC · Water',            type:'Water Network', status:'planning',  value:19800000, km:12.0, pct:12 },
+  { name:'Sewer Rehabilitation — Zone B',            client:'Municipality',           type:'Sewer Network', status:'completed', value:33100000, km:18.5, pct:100 },
+]
+const PAL = { active:'#22c55e', planning:'#8a95a6', completed:'#2563FF', on_hold:'#f97316' }
+
+// ── KPIs ──
+const totalVal = projects.reduce((s,p)=>s+p.value,0)
+const totalKm  = projects.reduce((s,p)=>s+p.km,0)
+const activeN  = projects.filter(p=>p.status==='active').length
+const avgPct   = Math.round(projects.reduce((s,p)=>s+p.pct,0)/projects.length)
+const execKm   = projects.reduce((s,p)=>s+p.km*p.pct/100,0)
+const kpis = [
+  { l:'Total Projects', i:'📋', v:projects.length, s:`${activeN} active` },
+  { l:'Contract Value', i:'💰', v:'SAR '+fmtM(totalVal)+'M', s:'across portfolio' },
+  { l:'Network Length', i:'📏', v:totalKm.toFixed(1)+' km', s:'design length' },
+  { l:'Executed', i:'🚧', v:execKm.toFixed(1)+' km', s:`${Math.round(execKm/totalKm*100)}% of network` },
+  { l:'Avg Completion', i:'📊', v:avgPct+'%', s:'portfolio progress', c:avgPct>=80?'var(--green)':avgPct>=40?'var(--orange)':'var(--blue)' },
+  { l:'Permits Expiring', i:'⚠️', v:3, s:'≤30 days · review', c:'var(--orange)' },
+]
+document.getElementById('kpis').innerHTML = kpis.map(k=>`
+  <div class="kpi"><div class="l">${k.l}<span>${k.i}</span></div>
+  <div class="v" style="color:${k.c||'var(--ink)'}">${k.v}</div><div class="s">${k.s}</div></div>`).join('')
+
+// ── Donut helper ──
+function donut(el, data, size=104){
+  const total = data.reduce((s,d)=>s+d.value,0) || 1
+  const r=40, c=2*Math.PI*r; let off=c/4
+  const segs = data.filter(d=>d.value>0).map(d=>{
+    const dash=d.value/total*c; const s=`<circle cx="55" cy="55" r="${r}" fill="none" stroke="${d.color}" stroke-width="16" stroke-dasharray="${dash} ${c}" stroke-dashoffset="${off}"/>`; off-=dash; return s
+  }).join('')
+  document.getElementById(el).innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 110 110">${segs}
+    <circle cx="55" cy="55" r="30" fill="var(--card)"/>
+    <text x="55" y="59" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">${total>=1000?(total/1000).toFixed(0)+'k':total}</text></svg>`
+}
+function legend(el, data, unit=''){
+  document.getElementById(el).innerHTML = data.map(d=>`<div class="row"><span class="dot" style="background:${d.color}"></span>${d.label}<b>${d.value}${unit}</b></div>`).join('')
+}
+
+// Status donut
+const byStatus = [
+  { label:'Active', value:projects.filter(p=>p.status==='active').length, color:PAL.active },
+  { label:'Planning', value:projects.filter(p=>p.status==='planning').length, color:PAL.planning },
+  { label:'Completed', value:projects.filter(p=>p.status==='completed').length, color:PAL.completed },
+]
+donut('statusDonut', byStatus); legend('statusLegend', byStatus)
+
+// Network by type (km)
+const types={}; projects.forEach(p=>types[p.type]=(types[p.type]||0)+p.km)
+const TPAL=['#2563FF','#06b6d4','#7C3AED','#22c55e']
+const byType=Object.entries(types).map(([label,value],i)=>({label,value:Math.round(value),color:TPAL[i%TPAL.length]}))
+donut('typeDonut', byType); legend('typeLegend', byType, ' km')
+
+// Permits (portfolio-wide, demo)
+const permits=[
+  {label:'Active',value:18,color:'#22c55e'},
+  {label:'Expiring ≤30d',value:3,color:'#f97316'},
+  {label:'Expired',value:2,color:'#ef4444'},
+  {label:'Handed Over',value:9,color:'#06b6d4'},
+]
+donut('permitDonut', permits); legend('permitLegend', permits)
+
+// Completion bars
+document.getElementById('completion').innerHTML = projects.map(p=>{
+  const col=p.pct>=80?'var(--green)':p.pct>=40?'var(--orange)':'var(--blue)'
+  return `<div class="pbar"><div class="t"><span class="nm">${p.name}</span><span class="pc">${p.pct}%</span></div>
+    <div class="track"><i style="width:${p.pct}%;background:${col}"></i></div></div>`
+}).join('')
+
+// Value bars
+const maxV=Math.max(...projects.map(p=>p.value))
+document.getElementById('valueBars').innerHTML = projects.map(p=>`
+  <div class="col"><span class="val">${fmtM(p.value)}</span>
+  <div class="bar" style="height:${Math.round(p.value/maxV*100)}%;background:${PAL[p.status]||'var(--blue)'}"></div>
+  <span class="cap">${p.name.split('—')[0].split('(')[0].trim().slice(0,14)}</span></div>`).join('')
+
+// Table
+const badge={active:'b-active',planning:'b-plan',completed:'b-done'}
+const label={active:'Active',planning:'Planning',completed:'Completed'}
+document.getElementById('projTable').innerHTML =
+  `<thead><tr><th>Project</th><th>Client</th><th>Type</th><th>Status</th><th>Value</th><th>Length</th><th>Progress</th></tr></thead><tbody>`+
+  projects.map(p=>{const col=p.pct>=80?'var(--green)':p.pct>=40?'var(--orange)':'var(--blue)';return `<tr>
+    <td style="font-weight:600;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</td>
+    <td style="color:var(--muted)">${p.client}</td>
+    <td style="color:var(--muted)">${p.type}</td>
+    <td><span class="badge ${badge[p.status]}">${label[p.status]}</span></td>
+    <td>SAR ${fmtM(p.value)}M</td>
+    <td>${p.km} km</td>
+    <td><div style="display:flex;align-items:center;gap:8px"><div class="mini"><i style="width:${p.pct}%;background:${col}"></i></div><span style="font-weight:700">${p.pct}%</span></div></td>
+  </tr>`}).join('')+`</tbody>`
+</script>
+</body>
+</html>
