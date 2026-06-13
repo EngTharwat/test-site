@@ -558,7 +558,8 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               className="text-[11px] text-[#2563FF] hover:underline">Open full map →</button>
           </div>
           <div className="relative" style={{ height: 380 }}>
-            <LeafletMap mapped={mappedSegments} facilities={[]} isDark={isDark} onSelect={() => {}} selected={null} fitNonce={0} />
+            <LeafletMap mapped={mappedSegments} facilities={[]} isDark={isDark} onSelect={() => {}} selected={null} fitNonce={0}
+              lineWeight={project?.mapStyle?.lineWeight} facilityShape={project?.mapStyle?.facilityShape} facilitySize={project?.mapStyle?.facilitySize} />
             {/* Activity color legend */}
             <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-gray-900/95 rounded-lg border border-gray-200 dark:border-gray-700 shadow px-3 py-2">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

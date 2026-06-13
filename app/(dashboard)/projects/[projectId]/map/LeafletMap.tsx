@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { divIcon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { Segment, Zone } from '@/lib/types'
-import { zoneHasManholes } from '@/lib/types'
+import type { Segment, Zone, FacilityShape } from '@/lib/types'
+import { zoneHasManholes, DEFAULT_MAP_STYLE } from '@/lib/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface MappedSegment extends Segment {
@@ -27,23 +27,45 @@ interface Props {
   onSelect:   (seg: MappedSegment | null) => void
   selected:   MappedSegment | null
   fitNonce:   number   // bump to re-fit the map to the segments on demand
+  // Shared display style (set by editors). Falls back to the defaults.
+  lineWeight?:    number
+  facilityShape?: FacilityShape
+  facilitySize?:  number
 }
 
-// Building marker (a structure/facility) — fixed screen size, colored by type.
-function facilityIcon(color: string) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-    <rect x="4" y="3" width="16" height="19" rx="1.5" fill="${color}" stroke="#fff" stroke-width="1.5"/>
-    <rect x="7.5" y="6.5" width="3" height="3" rx="0.5" fill="#fff"/>
-    <rect x="13.5" y="6.5" width="3" height="3" rx="0.5" fill="#fff"/>
-    <rect x="7.5" y="11.5" width="3" height="3" rx="0.5" fill="#fff"/>
-    <rect x="13.5" y="11.5" width="3" height="3" rx="0.5" fill="#fff"/>
-    <rect x="10" y="17" width="4" height="5" fill="#fff"/>
+// Inner SVG shape for a facility marker, drawn in a `size`×`size` viewBox.
+function facilityShapeSvg(shape: FacilityShape, color: string): string {
+  const fill = `fill="${color}"`, stroke = 'stroke="#fff" stroke-width="1.5"'
+  switch (shape) {
+    case 'square':
+      return `<rect x="3" y="3" width="18" height="18" rx="2" ${fill} ${stroke}/>`
+    case 'circle':
+      return `<circle cx="12" cy="12" r="9" ${fill} ${stroke}/>`
+    case 'triangle':
+      return `<path d="M12 3 L21 20 L3 20 Z" ${fill} ${stroke} stroke-linejoin="round"/>`
+    case 'diamond':
+      return `<path d="M12 2 L22 12 L12 22 L2 12 Z" ${fill} ${stroke} stroke-linejoin="round"/>`
+    case 'building':
+    default:
+      return `<rect x="4" y="3" width="16" height="19" rx="1.5" ${fill} ${stroke}/>
+        <rect x="7.5" y="6.5" width="3" height="3" rx="0.5" fill="#fff"/>
+        <rect x="13.5" y="6.5" width="3" height="3" rx="0.5" fill="#fff"/>
+        <rect x="7.5" y="11.5" width="3" height="3" rx="0.5" fill="#fff"/>
+        <rect x="13.5" y="11.5" width="3" height="3" rx="0.5" fill="#fff"/>
+        <rect x="10" y="17" width="4" height="5" fill="#fff"/>`
+  }
+}
+
+// Facility marker — fixed screen size (constant across zoom), colored by type.
+function facilityIcon(color: string, shape: FacilityShape, size: number) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
+    ${facilityShapeSvg(shape, color)}
   </svg>`
   return divIcon({
     className: '',
     html: `<div style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))">${svg}</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   })
 }
 
@@ -83,9 +105,8 @@ function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
 // Map a zoom level to a pixel width that represents a constant ground size.
 // Each +1 zoom doubles the map scale, so the pixel size doubles too.
 const BASE_ZOOM = 16   // reference zoom
-const BASE_PX   = 6    // line width (px) at BASE_ZOOM
-function weightForZoom(zoom: number): number {
-  const w = BASE_PX * Math.pow(2, zoom - BASE_ZOOM)
+function weightForZoom(zoom: number, basePx: number): number {
+  const w = basePx * Math.pow(2, zoom - BASE_ZOOM)
   return Math.max(2, Math.min(w, 160))   // clamp so it never vanishes or overwhelms
 }
 
@@ -134,13 +155,18 @@ function ActivityDots({ seg }: { seg: MappedSegment }) {
 }
 
 // ── Main map component ────────────────────────────────────────────────────────
-export default function LeafletMap({ mapped, facilities, isDark, onSelect, selected, fitNonce }: Props) {
+export default function LeafletMap({
+  mapped, facilities, isDark, onSelect, selected, fitNonce,
+  lineWeight: baseWeight = DEFAULT_MAP_STYLE.lineWeight,
+  facilityShape = DEFAULT_MAP_STYLE.facilityShape,
+  facilitySize  = DEFAULT_MAP_STYLE.facilitySize,
+}: Props) {
   // Default center: Saudi Arabia
   const defaultCenter: [number, number] = [24.68, 46.72]
 
   // Live zoom → drives line width & node radius (constant size vs. the map)
   const [zoom, setZoom] = useState(12)
-  const lineWeight = weightForZoom(zoom)
+  const lineWeight = weightForZoom(zoom, baseWeight)
   const nodeRadius = lineWeight   // node radius matches the line width
 
   const tileUrl = isDark
@@ -161,7 +187,7 @@ export default function LeafletMap({ mapped, facilities, isDark, onSelect, selec
 
       {/* Point facilities — squares (pump stations, reservoirs…) */}
       {facilities.map(f => (
-        <Marker key={f.id} position={[f.lat, f.lng]} icon={facilityIcon(f.color)}>
+        <Marker key={f.id} position={[f.lat, f.lng]} icon={facilityIcon(f.color, facilityShape, facilitySize)}>
           <Tooltip direction="top" offset={[0, -8]}>
             <div style={{ fontFamily: 'sans-serif', fontSize: 12 }}>
               <div style={{ fontWeight: 700 }}>{f.name}</div>

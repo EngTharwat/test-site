@@ -55,6 +55,26 @@ export interface ActivityProgress {
 }
 
 // ── Project ───────────────────────────────────────────────────────────────────
+// ── Map display style ──────────────────────────────────────────────────────────
+// Shared per-project map styling, set by editors and seen by all viewers.
+export type FacilityShape = 'building' | 'square' | 'circle' | 'triangle' | 'diamond'
+
+export interface MapStyle {
+  /** Base line thickness (px) at the reference zoom. Lines stay ground-relative,
+   *  so this scales with zoom — it just sets how thick they are overall. */
+  lineWeight:    number
+  /** Marker shape for point facilities (pump stations, reservoirs…). */
+  facilityShape: FacilityShape
+  /** Facility marker size (px). Fixed on screen — constant across zoom in/out. */
+  facilitySize:  number
+}
+
+export const DEFAULT_MAP_STYLE: MapStyle = {
+  lineWeight:    6,
+  facilityShape: 'building',
+  facilitySize:  24,
+}
+
 export interface Project {
   id:                  string
   userId:              string
@@ -83,6 +103,8 @@ export interface Project {
   totalSegments:   number
   executedLength:  number   // metres
   completionPct:   number   // 0–100
+  // Per-project map display style (line thickness, facility marker shape/size)
+  mapStyle?: MapStyle
   createdAt?: FirestoreTimestamp
   updatedAt?: FirestoreTimestamp
 }

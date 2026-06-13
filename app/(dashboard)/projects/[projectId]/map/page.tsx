@@ -5,7 +5,9 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
-import { Segment, Zone, fmtN } from '@/lib/types'
+import { Segment, Zone, Project, fmtN, DEFAULT_MAP_STYLE } from '@/lib/types'
+import type { MapStyle, FacilityShape } from '@/lib/types'
+import { EDITABLE_PAGES, getProjectPagePermissions } from '@/lib/permissions'
 import type { MappedSegment } from './LeafletMap'
 import { zoneColor } from './LeafletMap'
 
@@ -44,14 +46,50 @@ function lastActivityColor(seg: Segment): string {
   return i >= 0 ? ACTIVITY_DEFS[i].color : NOT_STARTED.color
 }
 
+// Facility shape options for the style picker
+const SHAPE_OPTIONS: { value: FacilityShape; label: string; glyph: string }[] = [
+  { value: 'building', label: 'Building', glyph: '🏢' },
+  { value: 'square',   label: 'Square',   glyph: '⬛' },
+  { value: 'circle',   label: 'Circle',   glyph: '⬤' },
+  { value: 'triangle', label: 'Triangle', glyph: '▲' },
+  { value: 'diamond',  label: 'Diamond',  glyph: '◆' },
+]
+
 export default function MapPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
+  const { profile } = useAuth()
 
   const [segments, setSegments] = useState<Segment[]>([])
   const [zones,    setZones]    = useState<Zone[]>([])
   const [loading,  setLoading]  = useState(true)
   const [selected, setSelected] = useState<MappedSegment | null>(null)
+
+  // ── Shared map display style (line thickness, facility shape/size) ──────────
+  const [style, setStyle] = useState<MapStyle>(DEFAULT_MAP_STYLE)
+  const [showStyle, setShowStyle] = useState(false)
+
+  // Can the current user edit the shared style? Admins always; members need
+  // 'edit' on at least one page of this project (mirrors the API carve-out).
+  const isAdmin = profile?.isAdmin ?? false
+  const canEdit = isAdmin || (profile?.permissions
+    ? EDITABLE_PAGES.some(p => getProjectPagePermissions(profile.permissions!, projectId)[p] === 'edit')
+    : false)
+
+  // Persist style changes (debounced) — only for editors.
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const updateStyle = useCallback((patch: Partial<MapStyle>) => {
+    setStyle(prev => {
+      const next = { ...prev, ...patch }
+      if (canEdit) {
+        if (saveTimer.current) clearTimeout(saveTimer.current)
+        saveTimer.current = setTimeout(() => {
+          api.patch(`/api/projects/${projectId}`, { mapStyle: next }).catch(() => {})
+        }, 500)
+      }
+      return next
+    })
+  }, [canEdit, projectId])
 
   // Detect dark mode (reads from <html> class set by the theme toggle)
   const [isDark, setIsDark] = useState(false)
@@ -76,12 +114,14 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
 
   const fetchAll = useCallback(async () => {
     try {
-      const [segs, zns] = await Promise.all([
+      const [segs, zns, proj] = await Promise.all([
         api.get(`/api/projects/${projectId}/segments`),
         api.get(`/api/projects/${projectId}/zones`),
+        api.get(`/api/projects/${projectId}`) as Promise<Project>,
       ])
       setSegments(segs)
       setZones(zns)
+      if (proj?.mapStyle) setStyle({ ...DEFAULT_MAP_STYLE, ...proj.mapStyle })
     } finally {
       setLoading(false)
     }
@@ -218,6 +258,82 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
           >
             ⤢ Fit
           </button>
+
+          {/* Style controls — editors only. Shared per-project. */}
+          {canEdit && (
+            <div className="relative">
+              <button
+                onClick={() => setShowStyle(v => !v)}
+                className={`border rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
+                  showStyle
+                    ? 'border-[#2563FF] text-[#2563FF] bg-blue-50 dark:bg-blue-500/10'
+                    : 'border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+                title="Map display style"
+              >
+                ⚙ Style
+              </button>
+
+              {showStyle && (
+                <div className="absolute z-[2000] mt-2 left-0 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-bold text-black dark:text-white">Map Display</span>
+                    <button onClick={() => setShowStyle(false)} className="text-[#9CA3AF] hover:text-black dark:hover:text-white">×</button>
+                  </div>
+
+                  {/* Line thickness */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-semibold text-[#6B7280] dark:text-gray-400">Line thickness</label>
+                      <span className="text-[11px] font-mono text-black dark:text-white">{style.lineWeight}px</span>
+                    </div>
+                    <input
+                      type="range" min={2} max={20} step={1}
+                      value={style.lineWeight}
+                      onChange={e => updateStyle({ lineWeight: Number(e.target.value) })}
+                      className="w-full accent-[#2563FF]"
+                    />
+                  </div>
+
+                  {/* Facility shape */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#6B7280] dark:text-gray-400 mb-1.5">Facility marker</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SHAPE_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => updateStyle({ facilityShape: opt.value })}
+                          title={opt.label}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] transition-colors ${
+                            style.facilityShape === opt.value
+                              ? 'border-[#2563FF] bg-blue-50 dark:bg-blue-500/10 text-[#2563FF] font-semibold'
+                              : 'border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <span>{opt.glyph}</span>{opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Facility size */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-semibold text-[#6B7280] dark:text-gray-400">Facility size</label>
+                      <span className="text-[11px] font-mono text-black dark:text-white">{style.facilitySize}px</span>
+                    </div>
+                    <input
+                      type="range" min={14} max={48} step={2}
+                      value={style.facilitySize}
+                      onChange={e => updateStyle({ facilitySize: Number(e.target.value) })}
+                      className="w-full accent-[#2563FF]"
+                    />
+                    <p className="text-[10px] text-[#9CA3AF] dark:text-gray-500 mt-1">Fixed on screen — stays the same size as you zoom.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {hasFilter && (
             <button onClick={clearFilters}
               className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
@@ -266,6 +382,9 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
               onSelect={setSelected}
               selected={selected}
               fitNonce={fitNonce}
+              lineWeight={style.lineWeight}
+              facilityShape={style.facilityShape}
+              facilitySize={style.facilitySize}
             />
           )}
 

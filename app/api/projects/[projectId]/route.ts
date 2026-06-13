@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { adminDb } from '@/lib/firebase-admin'
 import { verifyAuth } from '@/lib/auth'
 import { resolveAccess, assertProjectAccess } from '@/lib/access'
-import { getProjectPagePermissions } from '@/lib/permissions'
+import { getProjectPagePermissions, EDITABLE_PAGES } from '@/lib/permissions'
 import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string }> }
@@ -39,12 +39,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const access = await resolveAccess(user)
     await assertProjectAccess(access, projectId)
 
-    if (!access.isAdmin) {
-      return Response.json({ error: 'Forbidden — only admins can edit projects' }, { status: 403 })
-    }
-
     const ref  = adminDb.collection('projects').doc(projectId)
     const body = await request.json()
+
+    // Non-admins with edit access to any page may update ONLY the shared map
+    // display style — nothing else about the project.
+    if (!access.isAdmin) {
+      const perm     = getProjectPagePermissions(access.memberPermissions!, projectId)
+      const isEditor = EDITABLE_PAGES.some(p => perm[p] === 'edit')
+      const keys     = Object.keys(body)
+      if (!isEditor || keys.some(k => k !== 'mapStyle')) {
+        return Response.json({ error: 'Forbidden — only admins can edit projects' }, { status: 403 })
+      }
+    }
 
     const allowed = [
       'name','client','contractor','consultant','location','projectType',
@@ -52,6 +59,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       'contractEndDate','status','description',
       'breakdownEntries',
       'totalZones','totalSegments','executedLength','completionPct',
+      'mapStyle',
     ]
     const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() }
     for (const key of allowed) {
