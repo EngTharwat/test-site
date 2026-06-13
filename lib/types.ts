@@ -13,7 +13,7 @@ export type ZoneStatus     = 'not_started' | 'in_progress' | 'completed'
 // Zone type options per project type (includes point facilities like
 // Pump/Lift/Booster Stations, Reservoirs, Tanks — see NONLINEAR_ZONE_TYPES).
 export const ZONE_TYPES_BY_PROJECT: Record<ProjectType, string[]> = {
-  sewer_network:  ['Gravity', 'Force Main', 'House Connections', 'Pump Station', 'Lift Station', 'Manhole'],
+  sewer_network:  ['Gravity', 'Force Main', 'House Connections', 'Pump Station', 'Lift Station', 'Chamber'],
   water_network:  ['Transmission Main', 'Distribution Line', 'House Connections', 'Pump Station', 'Booster Station', 'Reservoir', 'Tank'],
   storm_drainage: ['Gravity', 'Force Main', 'Pump Station', 'Detention Basin', 'Outfall'],
   roads:          ['Earthworks', 'Subbase', 'Base Course', 'Asphalt', 'Drainage', 'Box Culvert'],
@@ -22,16 +22,23 @@ export const ZONE_TYPES_BY_PROJECT: Record<ProjectType, string[]> = {
 
 // Built-in types that are point facilities (a building/structure), not a
 // linear run. These default to non-linear: no segments, located by a single
-// coordinate, shown on the map as a square. Matched case-insensitively.
+// coordinate, shown on the map as a building. Matched case-insensitively.
 export const NONLINEAR_ZONE_TYPES = [
   'Pump Station', 'Lift Station', 'Booster Station', 'Reservoir', 'Tank',
-  'Manhole', 'Detention Basin', 'Outfall', 'Facility', 'Building',
+  'Chamber', 'Manhole', 'Detention Basin', 'Outfall', 'Facility', 'Building',
 ]
 const _nlSet = new Set(NONLINEAR_ZONE_TYPES.map(t => t.toLowerCase()))
 
 /** Sensible default for a type's "linear?" flag (user can override). */
 export function isLinearTypeDefault(type: string): boolean {
   return !_nlSet.has((type || '').trim().toLowerCase())
+}
+
+/** Whether a linear scope's segment endpoints are manholes (→ shown as nodes
+ *  on the map). Gravity networks have manholes; pressurized mains (force/
+ *  transmission/distribution) and connections do not. */
+export function zoneHasManholes(type: string): boolean {
+  return /gravity/i.test(type || '')
 }
 
 export interface FirestoreTimestamp { seconds: number; nanoseconds?: number }

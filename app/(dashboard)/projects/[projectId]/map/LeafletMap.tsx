@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Popup, Tooltip
 import { divIcon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Segment, Zone } from '@/lib/types'
+import { zoneHasManholes } from '@/lib/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface MappedSegment extends Segment {
@@ -28,13 +29,21 @@ interface Props {
   fitNonce:   number   // bump to re-fit the map to the segments on demand
 }
 
-// Square marker (a building/structure) — fixed screen size, colored by type.
-function squareIcon(color: string) {
+// Building marker (a structure/facility) — fixed screen size, colored by type.
+function facilityIcon(color: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+    <rect x="4" y="3" width="16" height="19" rx="1.5" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+    <rect x="7.5" y="6.5" width="3" height="3" rx="0.5" fill="#fff"/>
+    <rect x="13.5" y="6.5" width="3" height="3" rx="0.5" fill="#fff"/>
+    <rect x="7.5" y="11.5" width="3" height="3" rx="0.5" fill="#fff"/>
+    <rect x="13.5" y="11.5" width="3" height="3" rx="0.5" fill="#fff"/>
+    <rect x="10" y="17" width="4" height="5" fill="#fff"/>
+  </svg>`
   return divIcon({
     className: '',
-    html: `<div style="width:15px;height:15px;background:${color};border:2px solid #fff;border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.5)"></div>`,
-    iconSize: [15, 15],
-    iconAnchor: [7.5, 7.5],
+    html: `<div style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))">${svg}</div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
   })
 }
 
@@ -152,7 +161,7 @@ export default function LeafletMap({ mapped, facilities, isDark, onSelect, selec
 
       {/* Point facilities — squares (pump stations, reservoirs…) */}
       {facilities.map(f => (
-        <Marker key={f.id} position={[f.lat, f.lng]} icon={squareIcon(f.color)}>
+        <Marker key={f.id} position={[f.lat, f.lng]} icon={facilityIcon(f.color)}>
           <Tooltip direction="top" offset={[0, -8]}>
             <div style={{ fontFamily: 'sans-serif', fontSize: 12 }}>
               <div style={{ fontWeight: 700 }}>{f.name}</div>
@@ -223,8 +232,9 @@ export default function LeafletMap({ mapped, facilities, isDark, onSelect, selec
         )
       })}
 
-      {/* A node at BOTH the start and end of every segment */}
-      {mapped.flatMap(seg => {
+      {/* Manhole nodes at segment ends — only for gravity networks. Pressurized
+          mains (Force Main, transmission/distribution) have no manholes. */}
+      {mapped.filter(seg => zoneHasManholes(seg.zoneType)).flatMap(seg => {
         const opacity = selected && selected.id !== seg.id ? 0.4 : 1
         const opts = {
           color: seg.zoneColor, fillColor: seg.zoneColor,
