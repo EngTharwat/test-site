@@ -59,6 +59,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     for (const key of ['name', 'type', 'description', 'status']) {
       if (body[key] !== undefined) update[key] = body[key]
     }
+    if (body.linear !== undefined) {
+      const isLinear = body.linear !== false
+      update.linear = isLinear
+      // Coordinates only apply to non-linear point facilities
+      update.lat = !isLinear && body.lat != null ? Number(body.lat) : null
+      update.lng = !isLinear && body.lng != null ? Number(body.lng) : null
+    } else {
+      if (body.lat !== undefined) update.lat = body.lat != null ? Number(body.lat) : null
+      if (body.lng !== undefined) update.lng = body.lng != null ? Number(body.lng) : null
+    }
 
     await ref.update(update)
     const updated = await ref.get()

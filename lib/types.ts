@@ -10,13 +10,28 @@ export type PipeMaterial = 'uPVC' | 'HDPE' | 'RCP' | 'GRP' | 'DI' | 'Steel'
 export type ActivityStatus = 'not_started' | 'in_progress' | 'completed' | 'on_hold'
 export type ZoneStatus     = 'not_started' | 'in_progress' | 'completed'
 
-// Zone type options per project type
+// Zone type options per project type (includes point facilities like
+// Pump/Lift/Booster Stations, Reservoirs, Tanks — see NONLINEAR_ZONE_TYPES).
 export const ZONE_TYPES_BY_PROJECT: Record<ProjectType, string[]> = {
-  sewer_network:  ['Gravity', 'Force Main', 'House Connections'],
-  water_network:  ['Transmission Main', 'Distribution Line', 'House Connections'],
-  storm_drainage: ['Gravity', 'Force Main', 'Detention'],
-  roads:          ['Earthworks', 'Subbase', 'Base Course', 'Asphalt', 'Drainage'],
-  other:          ['General', 'Type A', 'Type B'],
+  sewer_network:  ['Gravity', 'Force Main', 'House Connections', 'Pump Station', 'Lift Station', 'Manhole'],
+  water_network:  ['Transmission Main', 'Distribution Line', 'House Connections', 'Pump Station', 'Booster Station', 'Reservoir', 'Tank'],
+  storm_drainage: ['Gravity', 'Force Main', 'Pump Station', 'Detention Basin', 'Outfall'],
+  roads:          ['Earthworks', 'Subbase', 'Base Course', 'Asphalt', 'Drainage', 'Box Culvert'],
+  other:          ['General', 'Type A', 'Type B', 'Facility'],
+}
+
+// Built-in types that are point facilities (a building/structure), not a
+// linear run. These default to non-linear: no segments, located by a single
+// coordinate, shown on the map as a square. Matched case-insensitively.
+export const NONLINEAR_ZONE_TYPES = [
+  'Pump Station', 'Lift Station', 'Booster Station', 'Reservoir', 'Tank',
+  'Manhole', 'Detention Basin', 'Outfall', 'Facility', 'Building',
+]
+const _nlSet = new Set(NONLINEAR_ZONE_TYPES.map(t => t.toLowerCase()))
+
+/** Sensible default for a type's "linear?" flag (user can override). */
+export function isLinearTypeDefault(type: string): boolean {
+  return !_nlSet.has((type || '').trim().toLowerCase())
 }
 
 export interface FirestoreTimestamp { seconds: number; nanoseconds?: number }
@@ -70,7 +85,13 @@ export interface Zone {
   id:        string
   projectId: string
   name:      string
-  type:      string          // zone type (e.g., "Gravity", "Force Main")
+  type:      string          // zone type (e.g., "Gravity", "Force Main", "Pump Station")
+  // Linear scopes have pipe/line segments. Non-linear scopes are point
+  // facilities (pump station, reservoir…) — no segments, located by lat/lng,
+  // drawn on the map as a square. Undefined = legacy linear zone.
+  linear?:   boolean
+  lat?:      number
+  lng?:      number
   // Legacy fields kept for backward compatibility with existing documents
   description?:     string
   totalLength?:     number

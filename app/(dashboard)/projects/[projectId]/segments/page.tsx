@@ -96,6 +96,8 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   // ── Derived helpers ───────────────────────────────────────────────────────
   const zoneMap   = Object.fromEntries(zones.map(z => [z.id, z]))
   const zoneLabel = (z: Zone) => z.type ? `${z.name} — ${z.type}` : z.name
+  // Only linear scopes can hold segments; point facilities are excluded.
+  const linearZones     = zones.filter(z => z.linear !== false)
   const uniqueTypes     = [...new Set(zones.map(z => z.type).filter(Boolean))]
   const uniqueDias      = [...new Set(segments.map(s => s.diameter).filter(Boolean))].sort((a, b) => a - b)
   const uniqueZoneNames = [...new Set(zones.map(z => z.name).filter(Boolean))].sort()
@@ -159,7 +161,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   function buildZoneLookup() {
     const map = new Map<string, Zone>()
-    zones.forEach(z => {
+    linearZones.forEach(z => {
       map.set(zoneLabel(z).toLowerCase(), z)
       map.set(z.name.toLowerCase(), z)
     })
@@ -172,7 +174,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
   const SEG_COLW = [{wch:24},{wch:28},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:18},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12}]
 
   function appendReferenceSheets(XLSX: any, wb: any) {
-    const zonesWs = XLSX.utils.aoa_to_sheet([['Zone (copy exact value into Zone column)'], ...zones.map(z => [zoneLabel(z)])])
+    const zonesWs = XLSX.utils.aoa_to_sheet([['Zone (copy exact value into Zone column)'], ...linearZones.map(z => [zoneLabel(z)])])
     zonesWs['!cols'] = [{ wch: 40 }]
     XLSX.utils.book_append_sheet(wb, zonesWs, 'Zones Reference')
     const matWs = XLSX.utils.aoa_to_sheet([['Material (copy exact value into Material column)'], ...PIPE_MATERIALS.map(m => [m])])
@@ -531,7 +533,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
               <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Zone *</label>
               <select className={inputCls} value={form.zoneId} onChange={set('zoneId')} required>
                 <option value="">— Select Zone —</option>
-                {zones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)}</option>)}
+                {linearZones.map(z => <option key={z.id} value={z.id}>{zoneLabel(z)}</option>)}
               </select>
             </div>
             {[

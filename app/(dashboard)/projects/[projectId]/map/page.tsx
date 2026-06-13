@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import { Segment, Zone, fmtN } from '@/lib/types'
 import type { MappedSegment } from './LeafletMap'
+import { zoneColor } from './LeafletMap'
 
 // Load Leaflet only in the browser (no SSR)
 const LeafletMap = dynamic(() => import('./LeafletMap'), {
@@ -127,6 +128,13 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
 
   const unmapped = segments.filter(s => !hasCoords(s))
 
+  // Point facilities (non-linear zones with coordinates) → square markers.
+  // Hidden when a segment-only filter is active; honor zone-name + type filters.
+  const facilities = (fMaterial || fSurface || fActivity) ? [] : zones
+    .filter(z => z.linear === false && z.lat != null && z.lng != null)
+    .filter(z => (!fZone || z.name === fZone) && (!fType || z.type === fType))
+    .map((z, i) => ({ id: z.id, name: z.name, type: z.type || 'Facility', lat: z.lat!, lng: z.lng!, color: zoneColor(z.type ?? '', i) }))
+
   // Activity legend + per-activity total length (grouped by each segment's
   // LAST completed activity, so totals sum to the mapped network length).
   const activitySummary = [...ACTIVITY_DEFS, NOT_STARTED].map((a, i) => {
@@ -236,13 +244,13 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
                 {[1,2,3].map(i => <div key={i} className="h-4 bg-gray-300 dark:bg-gray-700 rounded animate-pulse w-48" />)}
               </div>
             </div>
-          ) : segments.filter(hasCoords).length === 0 ? (
+          ) : (segments.filter(hasCoords).length === 0 && facilities.length === 0) ? (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
               <div className="text-center">
                 <div className="text-5xl mb-4">📍</div>
                 <p className="text-[15px] font-bold text-black dark:text-white mb-2">No GIS coordinates yet</p>
                 <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-5 max-w-xs">
-                  Add Start Lat/Lng and End Lat/Lng to segments to see them on the map.
+                  Add Start/End Lat-Lng to segments, or coordinates to a point facility (e.g. a pump station), to see them on the map.
                 </p>
                 <button onClick={() => router.push(`/projects/${projectId}/segments`)}
                   className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
@@ -253,6 +261,7 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
           ) : (
             <LeafletMap
               mapped={filteredMapped}
+              facilities={facilities}
               isDark={isDark}
               onSelect={setSelected}
               selected={selected}

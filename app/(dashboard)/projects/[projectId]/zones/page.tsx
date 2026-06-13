@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
-import { Zone, Project, ZONE_TYPES_BY_PROJECT, ProjectType } from '@/lib/types'
+import { Zone, Project, ZONE_TYPES_BY_PROJECT, ProjectType, isLinearTypeDefault } from '@/lib/types'
+
+const CUSTOM = '__custom__'
 
 const inputCls = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
 
@@ -41,7 +43,9 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
   const [showForm, setShowForm]= useState(false)
   const [saving,   setSaving]  = useState(false)
   const [editZone, setEditZone]= useState<Zone | null>(null)
-  const [form, setForm] = useState({ name: '', type: '' })
+  const [form, setForm] = useState({
+    name: '', type: '', customType: '', linear: true, lat: '', lng: '',
+  })
 
   const fetchAll = useCallback(async () => {
     try {
@@ -63,14 +67,32 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
   const projectType = (project?.projectType ?? 'other') as ProjectType
   const typeOptions = ZONE_TYPES_BY_PROJECT[projectType] ?? ZONE_TYPES_BY_PROJECT.other
 
-  function resetForm() { setForm({ name: '', type: '' }) }
+  function resetForm() { setForm({ name: '', type: '', customType: '', linear: true, lat: '', lng: '' }) }
+
+  // The effective type string (dropdown choice, or the custom text)
+  const effectiveType = form.type === CUSTOM ? form.customType.trim() : form.type
+
+  // Choosing a built-in type auto-sets its linear default (user can still toggle)
+  function chooseType(value: string) {
+    setForm(f => ({
+      ...f,
+      type: value,
+      linear: value === CUSTOM ? f.linear : isLinearTypeDefault(value),
+    }))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.type) { setError('Please select a zone type'); return }
+    if (!effectiveType) { setError('Please choose or enter a scope type'); return }
     setSaving(true); setError('')
     try {
-      const body = { name: form.name.trim(), type: form.type }
+      const body = {
+        name: form.name.trim(),
+        type: effectiveType,
+        linear: form.linear,
+        lat: !form.linear && form.lat ? Number(form.lat) : null,
+        lng: !form.linear && form.lng ? Number(form.lng) : null,
+      }
       if (editZone) {
         const updated = await api.patch(`/api/projects/${projectId}/zones/${editZone.id}`, body)
         setZones(prev => prev.map(z => z.id === editZone.id ? updated : z))
@@ -88,7 +110,15 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
 
   function openEdit(zone: Zone) {
     setEditZone(zone)
-    setForm({ name: zone.name, type: zone.type ?? '' })
+    const known = (ZONE_TYPES_BY_PROJECT[projectType] ?? []).includes(zone.type)
+    setForm({
+      name: zone.name,
+      type: zone.type ? (known ? zone.type : CUSTOM) : '',
+      customType: known ? '' : (zone.type ?? ''),
+      linear: zone.linear !== false,
+      lat: zone.lat != null ? String(zone.lat) : '',
+      lng: zone.lng != null ? String(zone.lng) : '',
+    })
     setShowForm(true)
   }
 
@@ -144,16 +174,60 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Zone Type *</label>
-              <select
-                className={inputCls} required
-                value={form.type}
-                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              >
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Scope / Type *</label>
+              <select className={inputCls} required value={form.type} onChange={e => chooseType(e.target.value)}>
                 <option value="">— Select Type —</option>
                 {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value={CUSTOM}>Other (custom)…</option>
               </select>
             </div>
+
+            {/* Custom type name */}
+            {form.type === CUSTOM && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Custom Scope Name *</label>
+                <input className={inputCls} required value={form.customType}
+                  onChange={e => setForm(f => ({ ...f, customType: e.target.value }))}
+                  placeholder="e.g. Siphon Chamber" />
+              </div>
+            )}
+
+            {/* Linear vs facility */}
+            <div className="md:col-span-2">
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Scope kind</label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setForm(f => ({ ...f, linear: true }))}
+                  className={`flex-1 min-w-[160px] text-left px-3 py-2.5 rounded-lg border text-[12px] transition-colors ${
+                    form.linear ? 'border-[#2563FF] bg-[#2563FF]/10 text-black dark:text-white'
+                                : 'border-gray-200 dark:border-gray-700 text-[#6B7280] dark:text-gray-400 hover:border-gray-400'}`}>
+                  <span className="font-semibold">⎯ Linear run</span>
+                  <span className="block text-[10px] mt-0.5 opacity-80">Has pipe/line segments (network, force main…)</span>
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, linear: false }))}
+                  className={`flex-1 min-w-[160px] text-left px-3 py-2.5 rounded-lg border text-[12px] transition-colors ${
+                    !form.linear ? 'border-[#2563FF] bg-[#2563FF]/10 text-black dark:text-white'
+                                 : 'border-gray-200 dark:border-gray-700 text-[#6B7280] dark:text-gray-400 hover:border-gray-400'}`}>
+                  <span className="font-semibold">▦ Point facility</span>
+                  <span className="block text-[10px] mt-0.5 opacity-80">A building/structure — no segments, shown as a square on the map</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Facility coordinates */}
+            {!form.linear && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Latitude</label>
+                  <input className={inputCls} type="number" step="any" value={form.lat}
+                    onChange={e => setForm(f => ({ ...f, lat: e.target.value }))} placeholder="24.123456" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Longitude</label>
+                  <input className={inputCls} type="number" step="any" value={form.lng}
+                    onChange={e => setForm(f => ({ ...f, lng: e.target.value }))} placeholder="46.789012" />
+                </div>
+              </>
+            )}
           </div>
           {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
           <div className="flex gap-3 mt-4">
@@ -201,13 +275,23 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
                 <div className="flex flex-col gap-2">
                   {scopeZones.map(zone => (
                     <div key={zone.id} className="flex items-center justify-between gap-3">
-                      {zone.type ? (
-                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeBadge(zone.type)}`}>
-                          {zone.type}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-[#9CA3AF] italic">No scope</span>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {zone.type ? (
+                          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeBadge(zone.type)}`}>
+                            {zone.type}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-[#9CA3AF] italic">No scope</span>
+                        )}
+                        {zone.linear === false && (
+                          <span className="text-[10px] font-semibold text-[#6B7280] dark:text-gray-400 inline-flex items-center gap-1">
+                            ▦ Facility
+                            {zone.lat != null && zone.lng != null && (
+                              <span className="font-mono text-[#9CA3AF]">{zone.lat.toFixed(4)}, {zone.lng.toFixed(4)}</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       {canEdit && (
                         <div className="flex gap-3">
                           <button onClick={() => openEdit(zone)}

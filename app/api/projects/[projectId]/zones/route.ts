@@ -56,14 +56,19 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json()
-    const { name, type } = body
+    const { name, type, linear, lat, lng } = body
 
     if (!name?.trim()) return Response.json({ error: 'Zone name is required' }, { status: 400 })
 
+    const isLinear = linear !== false   // default true (linear scope)
     const data = {
       projectId,
       name: name.trim(),
       type: type?.trim() ?? '',
+      linear: isLinear,
+      // Point facilities store a single coordinate; linear scopes don't
+      lat: !isLinear && lat != null ? Number(lat) : null,
+      lng: !isLinear && lng != null ? Number(lng) : null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }

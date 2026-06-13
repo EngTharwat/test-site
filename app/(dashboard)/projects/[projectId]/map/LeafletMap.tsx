@@ -2,7 +2,8 @@
 
 // This file is imported with ssr:false — safe to use window/document
 import { useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { divIcon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Segment, Zone } from '@/lib/types'
 
@@ -13,12 +14,28 @@ export interface MappedSegment extends Segment {
   zoneColor: string
 }
 
+// Non-linear point facility (pump station, reservoir…) drawn as a square.
+export interface MappedFacility {
+  id: string; name: string; type: string; lat: number; lng: number; color: string
+}
+
 interface Props {
-  mapped:   MappedSegment[]
-  isDark:   boolean
-  onSelect: (seg: MappedSegment | null) => void
-  selected: MappedSegment | null
-  fitNonce: number   // bump to re-fit the map to the segments on demand
+  mapped:     MappedSegment[]
+  facilities: MappedFacility[]
+  isDark:     boolean
+  onSelect:   (seg: MappedSegment | null) => void
+  selected:   MappedSegment | null
+  fitNonce:   number   // bump to re-fit the map to the segments on demand
+}
+
+// Square marker (a building/structure) — fixed screen size, colored by type.
+function squareIcon(color: string) {
+  return divIcon({
+    className: '',
+    html: `<div style="width:15px;height:15px;background:${color};border:2px solid #fff;border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.5)"></div>`,
+    iconSize: [15, 15],
+    iconAnchor: [7.5, 7.5],
+  })
 }
 
 // ── Zone type → color map ─────────────────────────────────────────────────────
@@ -65,18 +82,18 @@ function weightForZoom(zoom: number): number {
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
 // Re-fits whenever the segment set changes OR fitNonce is bumped (Fit button).
-function FitBounds({ mapped, fitNonce }: { mapped: MappedSegment[]; fitNonce: number }) {
+function FitBounds({ mapped, facilities, fitNonce }: { mapped: MappedSegment[]; facilities: MappedFacility[]; fitNonce: number }) {
   const map = useMap()
   useEffect(() => {
-    if (!mapped.length) return
-    const lats = mapped.flatMap(s => [s.startLat!, s.endLat!])
-    const lngs = mapped.flatMap(s => [s.startLng!, s.endLng!])
+    const lats = [...mapped.flatMap(s => [s.startLat!, s.endLat!]), ...facilities.map(f => f.lat)]
+    const lngs = [...mapped.flatMap(s => [s.startLng!, s.endLng!]), ...facilities.map(f => f.lng)]
+    if (!lats.length) return
     const minLat = Math.min(...lats), maxLat = Math.max(...lats)
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
     if (isFinite(minLat)) {
       map.fitBounds([[minLat, minLng],[maxLat, maxLng]], { padding: [40, 40] })
     }
-  }, [mapped, map, fitNonce])
+  }, [mapped, facilities, map, fitNonce])
   return null
 }
 
@@ -108,7 +125,7 @@ function ActivityDots({ seg }: { seg: MappedSegment }) {
 }
 
 // ── Main map component ────────────────────────────────────────────────────────
-export default function LeafletMap({ mapped, isDark, onSelect, selected, fitNonce }: Props) {
+export default function LeafletMap({ mapped, facilities, isDark, onSelect, selected, fitNonce }: Props) {
   // Default center: Saudi Arabia
   const defaultCenter: [number, number] = [24.68, 46.72]
 
@@ -131,7 +148,26 @@ export default function LeafletMap({ mapped, isDark, onSelect, selected, fitNonc
     >
       <TileLayer url={tileUrl} attribution={tileAttrib} />
       <ZoomWatcher onZoom={setZoom} />
-      {mapped.length > 0 && <FitBounds mapped={mapped} fitNonce={fitNonce} />}
+      {(mapped.length > 0 || facilities.length > 0) && <FitBounds mapped={mapped} facilities={facilities} fitNonce={fitNonce} />}
+
+      {/* Point facilities — squares (pump stations, reservoirs…) */}
+      {facilities.map(f => (
+        <Marker key={f.id} position={[f.lat, f.lng]} icon={squareIcon(f.color)}>
+          <Tooltip direction="top" offset={[0, -8]}>
+            <div style={{ fontFamily: 'sans-serif', fontSize: 12 }}>
+              <div style={{ fontWeight: 700 }}>{f.name}</div>
+              <div style={{ color: '#6b7280' }}>{f.type}</div>
+            </div>
+          </Tooltip>
+          <Popup>
+            <div style={{ minWidth: 150, fontFamily: 'sans-serif', fontSize: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{f.name}</div>
+              <div style={{ color: '#6b7280', marginBottom: 2 }}>{f.type} · facility</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 11 }}>{f.lat.toFixed(6)}, {f.lng.toFixed(6)}</div>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
 
       {mapped.map(seg => {
         const start: [number, number] = [seg.startLat!, seg.startLng!]
