@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import type { MappedSegment } from './map/LeafletMap'
+import { zoneColor } from './map/LeafletMap'
 
 // Embed the Leaflet map (browser-only)
 const LeafletMap = dynamic(() => import('./map/LeafletMap'), {
@@ -31,6 +32,9 @@ function lastActivityColorOV(seg: Segment): string {
   OV_ACTIVITIES.forEach((a, i) => { if (((seg as any)[a.key]?.pct ?? 0) >= 100) idx = i })
   return idx >= 0 ? OV_ACTIVITIES[idx].color : '#9ca3af'
 }
+const hasCoordsOV = (s: Segment) =>
+  s.startLat != null && s.startLng != null && s.endLat != null && s.endLng != null
+const pctColor = (p: number) => p >= 80 ? '#22c55e' : p >= 40 ? '#f97316' : '#2563FF'
 import {
   Project, Zone, Segment, Permit,
   ProjectStatus, ProjectType, Currency,
@@ -113,6 +117,30 @@ function DonutChart({ data, size = 110 }: {
       <text x={cx} y={cy + 4} textAnchor="middle" fontSize="13" fontWeight="700"
         fill="#0F1115" className="dark:fill-white">
         {Math.round((data[0]?.value / total) * 100)}%
+      </text>
+    </svg>
+  )
+}
+
+// ── Progress ring (single %, SVG) ─────────────────────────────────────────────
+function RingStat({ pct, size = 96, stroke = 10, color }: {
+  pct: number; size?: number; stroke?: number; color?: string
+}) {
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const clamped = Math.max(0, Math.min(100, pct))
+  const dash = (clamped / 100) * c
+  const ringColor = color ?? pctColor(clamped)
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke}
+        className="stroke-gray-100 dark:stroke-gray-800" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ringColor} strokeWidth={stroke}
+        strokeLinecap="round" strokeDasharray={`${dash} ${c}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: 'stroke-dasharray .4s ease' }} />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle"
+        fontSize={size * 0.26} fontWeight="700" fill="currentColor" className="text-black dark:text-white">
+        {clamped}%
       </text>
     </svg>
   )
@@ -325,6 +353,9 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Embedded map is filtered to a single zone (slicer). '' until data loads.
+  const [mapZoneId, setMapZoneId] = useState<string>('')
+
   // Theme for the embedded map tiles
   const [isDark, setIsDark] = useState(false)
   useEffect(() => {
@@ -353,6 +384,21 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   }, [projectId])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  // Default the map slicer to the zone with the most mapped segments (so the
+  // map opens on something), else the first point facility, else first zone.
+  useEffect(() => {
+    if (mapZoneId || !zones.length) return
+    const counts: Record<string, number> = {}
+    segments.forEach(s => { if (hasCoordsOV(s)) counts[s.zoneId] = (counts[s.zoneId] || 0) + 1 })
+    let best = '', bestN = 0
+    zones.forEach(z => { const n = counts[z.id] || 0; if (n > bestN) { bestN = n; best = z.id } })
+    if (!best) {
+      const fac = zones.find(z => z.linear === false && z.lat != null && z.lng != null)
+      best = fac?.id ?? ''
+    }
+    if (best) setMapZoneId(best)
+  }, [zones, segments, mapZoneId])
 
   async function handleDelete() {
     if (!project || !confirm(`Delete "${project.name}"?\n\nAll data will be permanently removed.`)) return
@@ -432,6 +478,35 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const projectPct = totalSegs > 0
     ? Math.round(segments.reduce((s, seg) => s + (seg.overallPct || 0), 0) / totalSegs)
     : project.completionPct || 0
+  const executedLength = segments.reduce((s, seg) => s + (seg.length || 0) * (seg.overallPct || 0) / 100, 0)
+  const totalSegLength = segments.reduce((s, seg) => s + (seg.length || 0), 0)
+
+  // ── Zone-filtered map (slicer) ──────────────────────────────────────────────
+  // Zones that have something to draw: mapped segments, or a point facility.
+  const mappedZoneIds   = new Set(mappedSegments.map(s => s.zoneId))
+  const facilityZones   = zones.filter(z => z.linear === false && z.lat != null && z.lng != null)
+  const facilityZoneIds = new Set(facilityZones.map(z => z.id))
+  const mapZoneOptions  = zones.filter(z => mappedZoneIds.has(z.id) || facilityZoneIds.has(z.id))
+  // Fall back to the first option until the default effect sets the state, so
+  // the slicer is never in an unmatched/empty state on the first render.
+  const activeZoneId = mapZoneId || mapZoneOptions[0]?.id || ''
+
+  const mapZone     = zones.find(z => z.id === activeZoneId) ?? null
+  const isFacility  = !!mapZone && facilityZoneIds.has(mapZone.id)
+  const zoneMapped  = mappedSegments.filter(s => s.zoneId === activeZoneId)
+  const zoneFacs    = (mapZone && isFacility)
+    ? [{ id: mapZone.id, name: mapZone.name, type: mapZone.type || 'Facility',
+         lat: mapZone.lat!, lng: mapZone.lng!, color: zoneColor(mapZone.type ?? '') }]
+    : []
+
+  // Stats for the selected zone
+  const selStat       = zoneStats.find(z => z.id === activeZoneId) ?? null
+  const zoneSegsAll   = segments.filter(s => s.zoneId === activeZoneId)
+  const zonePct       = selStat?.avgPct ?? mapZone?.completionPct ?? 0
+  const zoneActStats  = ACTIVITY_KEYS.map(act => {
+    const done = zoneSegsAll.filter(s => ((s as any)[act.key]?.pct ?? 0) >= 100).length
+    return { ...act, done, pct: zoneSegsAll.length ? Math.round(done / zoneSegsAll.length * 100) : 0 }
+  })
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -497,16 +572,25 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       </div>
 
       {/* ── KPI Row ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Contract Value"   icon="💰"
           value={formatCurrency(project.contractValue, project.currency)} sub={project.currency} />
         <KpiCard label="Project Length"   icon="📏"
           value={formatLength(project.totalNetworkLength)}
-          sub={`${totalSegs} segments`} />
-        <KpiCard label="Overall Progress" icon="📊"
-          value={`${projectPct}%`}
-          sub={`${zones.length} zones`}
-          accent={projectPct >= 80 ? '#22c55e' : projectPct >= 40 ? '#f97316' : '#2563FF'} />
+          sub={`${formatLength(executedLength)} executed`} />
+
+        {/* Overall progress — ring + breakdown */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 flex items-center gap-4">
+          <RingStat pct={projectPct} size={72} stroke={8} />
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Overall Progress</div>
+            <div className="text-[12px] text-black dark:text-white font-semibold">{zones.length} zones · {totalSegs} segs</div>
+            {facilityZones.length > 0 && (
+              <div className="text-[11px] text-[#6B7280] dark:text-gray-400">🏢 {facilityZones.length} facilit{facilityZones.length === 1 ? 'y' : 'ies'}</div>
+            )}
+          </div>
+        </div>
+
         <KpiCard label="Days Remaining"   icon={days !== null && days < 0 ? '⚠️' : '📅'}
           value={days !== null ? `${fmtN(Math.abs(days))}` : '—'}
           sub={days === null ? 'No end date' : days < 0 ? 'Days overdue' : 'Days left'}
@@ -546,31 +630,111 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         </div>
       )}
 
-      {/* ── Network Map ──────────────────────────────────────────────────── */}
-      {mappedSegments.length > 0 && (
+      {/* ── Project Map — filtered to one zone, with slicer + zone stats ──── */}
+      {mapZoneOptions.length > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-6 py-4 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-3">
               <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Project Map</h2>
-              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">{mappedSegments.length} mapped segments</span>
+              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">filtered to one zone</span>
             </div>
-            <button onClick={() => router.push(`/projects/${projectId}/map`)}
-              className="text-[11px] text-[#2563FF] hover:underline">Open full map →</button>
+            <div className="flex items-center gap-3">
+              {/* Zone slicer */}
+              <select
+                value={activeZoneId}
+                onChange={e => setMapZoneId(e.target.value)}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500 cursor-pointer max-w-[220px]"
+              >
+                {mapZoneOptions.map(z => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}{z.type ? ` — ${z.type}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => router.push(`/projects/${projectId}/map`)}
+                className="text-[11px] text-[#2563FF] hover:underline whitespace-nowrap">Open full map →</button>
+            </div>
           </div>
-          <div className="relative" style={{ height: 380 }}>
-            <LeafletMap mapped={mappedSegments} facilities={[]} isDark={isDark} onSelect={() => {}} selected={null} fitNonce={0}
-              lineWeight={project?.mapStyle?.lineWeight} facilityShape={project?.mapStyle?.facilityShape} facilitySize={project?.mapStyle?.facilitySize} />
-            {/* Activity color legend */}
-            <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-gray-900/95 rounded-lg border border-gray-200 dark:border-gray-700 shadow px-3 py-2">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {[...OV_ACTIVITIES.map((a, i) => ({ label: ACTIVITY_KEYS[i].label, color: a.color })),
-                  { label: 'Not Started', color: '#9ca3af' }].map(e => (
-                  <div key={e.label} className="flex items-center gap-1.5">
-                    <span className="inline-block w-4 h-1 rounded-full" style={{ background: e.color }} />
-                    <span className="text-[10px] text-black dark:text-white">{e.label}</span>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3">
+            {/* Map */}
+            <div className="relative lg:col-span-2" style={{ height: 380 }}>
+              <LeafletMap
+                key={activeZoneId}
+                mapped={zoneMapped} facilities={zoneFacs}
+                isDark={isDark} onSelect={() => {}} selected={null} fitNonce={0}
+                lineWeight={project?.mapStyle?.lineWeight}
+                facilityShape={project?.mapStyle?.facilityShape}
+                facilitySize={project?.mapStyle?.facilitySize} />
+              {zoneMapped.length > 0 && (
+                <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-gray-900/95 rounded-lg border border-gray-200 dark:border-gray-700 shadow px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {[...OV_ACTIVITIES.map((a, i) => ({ label: ACTIVITY_KEYS[i].label, color: a.color })),
+                      { label: 'Not Started', color: '#9ca3af' }].map(e => (
+                      <div key={e.label} className="flex items-center gap-1.5">
+                        <span className="inline-block w-4 h-1 rounded-full" style={{ background: e.color }} />
+                        <span className="text-[10px] text-black dark:text-white">{e.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Selected-zone stats */}
+            <div className="border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-800 p-5 flex flex-col">
+              <div className="flex items-start gap-4 mb-4">
+                <RingStat pct={zonePct} size={84} stroke={9} />
+                <div className="min-w-0">
+                  <div className="text-[14px] font-bold text-black dark:text-white truncate">{mapZone?.name ?? '—'}</div>
+                  <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mb-1">
+                    {mapZone?.type || 'Untyped'}{isFacility ? ' · 🏢 facility' : ''}
+                  </div>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: `${pctColor(zonePct)}1a`, color: pctColor(zonePct) }}>
+                    {zonePct}% complete
+                  </span>
+                </div>
+              </div>
+
+              {/* Numbers */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[
+                  { label: 'Segments', value: fmtN(selStat?.segCount ?? 0) },
+                  { label: 'Length',   value: formatLength(selStat?.totalLen ?? 0) },
+                  { label: 'Done',     value: fmtN(zoneSegsAll.filter(s => (s.overallPct || 0) >= 100).length) },
+                  { label: 'Not started', value: fmtN(zoneSegsAll.filter(s => (s.overallPct || 0) === 0).length) },
+                ].map(s => (
+                  <div key={s.label} className="bg-[#F9FAFB] dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                    <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{s.label}</div>
+                    <div className="text-[15px] font-bold text-black dark:text-white">{s.value}</div>
                   </div>
                 ))}
               </div>
+
+              {/* Per-activity completion for this zone */}
+              {zoneSegsAll.length > 0 ? (
+                <div className="space-y-2 mt-auto">
+                  {zoneActStats.map(act => (
+                    <div key={act.key}>
+                      <div className="flex justify-between items-center text-[11px] mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-block w-2 h-2 rounded-full" style={{ background: act.color }} />
+                          <span className="text-black dark:text-white">{act.label}</span>
+                        </div>
+                        <span className="text-[#6B7280] dark:text-gray-400">{act.done}/{zoneSegsAll.length} · {act.pct}%</span>
+                      </div>
+                      <Bar pct={act.pct} color={act.color} height={4} />
+                    </div>
+                  ))}
+                </div>
+              ) : isFacility ? (
+                <p className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-auto font-mono">
+                  📍 {mapZone?.lat?.toFixed(6)}, {mapZone?.lng?.toFixed(6)}
+                </p>
+              ) : (
+                <p className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-auto">No mapped segments in this zone.</p>
+              )}
             </div>
           </div>
         </div>
@@ -740,7 +904,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             <div className="grid grid-cols-2 gap-4">
               {[
                 { label: 'Total Segments',   value: fmtN(totalSegs),                   sub: 'across all zones' },
-                { label: 'Total Length',     value: formatLength(segments.reduce((s, seg) => s + (seg.length || 0), 0)), sub: 'network length' },
+                { label: 'Total Length',     value: formatLength(totalSegLength), sub: 'mapped + unmapped' },
                 { label: 'Fully Complete',   value: fmtN(segments.filter(s => (s.overallPct || 0) >= 100).length), sub: 'segments (100%)' },
                 { label: 'Not Started',      value: fmtN(segments.filter(s => (s.overallPct || 0) === 0).length), sub: 'segments (0%)' },
               ].map(s => (
