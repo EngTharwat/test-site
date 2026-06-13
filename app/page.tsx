@@ -62,7 +62,7 @@ function WhatsAppIcon() {
 const DEMO_STATS = [
   { label: 'Total Projects',  value: '4',          sub: '3 active' },
   { label: 'Contract Value',  value: 'SAR 126.6M', sub: 'across portfolio' },
-  { label: 'Network Length',  value: '35.3 km',    sub: 'all projects' },
+  { label: 'Project Length',  value: '35.3 km',    sub: 'all projects' },
   { label: 'Avg. Completion', value: '51%',         sub: 'portfolio progress' },
 ]
 

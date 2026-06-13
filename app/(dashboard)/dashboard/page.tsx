@@ -289,7 +289,7 @@ function EditModal({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Total Network Length (m)</label>
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Total Project Length (m)</label>
               <input className={inputCls} type="number" min="0" step="1" value={form.totalNetworkLength} onChange={set('totalNetworkLength')} />
             </div>
           </div>
@@ -392,7 +392,7 @@ export default function PortfolioDashboard() {
     { label: 'Contract value',
       value: totalValue >= 1e6 ? `${currency} ${(totalValue / 1e6).toFixed(1)}M` : formatCurrency(totalValue, currency),
       sub: 'across portfolio' },
-    { label: 'Network length', value: formatLength(totalLength), sub: 'design length' },
+    { label: 'Project length', value: formatLength(totalLength), sub: 'design length' },
     { label: 'Permits expiring', value: fmtN(pExpiring),
       sub: pExpired > 0 ? `${pExpired} expired` : '≤30 days',
       accent: pExpiring ? '#f97316' : undefined,
@@ -455,7 +455,7 @@ export default function PortfolioDashboard() {
             <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
               <div>
                 <div className="font-mono text-[10px] uppercase tracking-[2px] text-[#6B7280] dark:text-gray-400 mb-1.5">
-                  Network execution
+                  Project execution
                 </div>
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span className="text-[34px] leading-none font-bold tracking-[-1px] text-black dark:text-white tabular-nums">
@@ -535,7 +535,7 @@ export default function PortfolioDashboard() {
                 <div className="flex-1"><Legend data={statusSlices} /></div>
               </div>
             </Panel>
-            <Panel title="Network by Type"
+            <Panel title="Length by Type"
               extra={<span className="text-[10px] font-normal normal-case text-[#9CA3AF] tabular-nums">{(totalLength / 1000).toFixed(1)} km</span>}>
               {typeSegs.length === 0 ? (
                 <p className="text-[12px] text-[#6B7280] dark:text-gray-400 py-6 text-center">No network lengths set</p>

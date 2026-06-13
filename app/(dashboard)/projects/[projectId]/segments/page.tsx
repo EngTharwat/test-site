@@ -460,7 +460,7 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
             className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-1 flex items-center gap-1 transition-colors">
             ← Overview
           </button>
-          <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Network Segments</h1>
+          <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Project Segments</h1>
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">Individual pipe segments with engineering data</p>
         </div>
         {canEdit && (

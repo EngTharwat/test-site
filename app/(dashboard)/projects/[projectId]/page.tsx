@@ -247,7 +247,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
           {/* Dynamic breakdown */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">Network Length Breakdown</p>
+              <p className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">Project Length Breakdown</p>
               {totalNetworkLength > 0 && (
                 <span className="text-[11px] font-semibold text-[#2563FF]">Total: {totalNetworkLength.toLocaleString()} m</span>
               )}
@@ -500,7 +500,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="Contract Value"   icon="💰"
           value={formatCurrency(project.contractValue, project.currency)} sub={project.currency} />
-        <KpiCard label="Network Length"   icon="📏"
+        <KpiCard label="Project Length"   icon="📏"
           value={formatLength(project.totalNetworkLength)}
           sub={`${totalSegs} segments`} />
         <KpiCard label="Overall Progress" icon="📊"
@@ -551,7 +551,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-3">
-              <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Network Map</h2>
+              <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Project Map</h2>
               <span className="text-[11px] text-[#6B7280] dark:text-gray-400">{mappedSegments.length} mapped segments</span>
             </div>
             <button onClick={() => router.push(`/projects/${projectId}/map`)}
@@ -678,7 +678,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         return (
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Network Breakdown</h2>
+              <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Project Breakdown</h2>
               <span className="text-[12px] font-semibold text-[#6B7280] dark:text-gray-400">
                 Total: {formatLength(total)}
               </span>

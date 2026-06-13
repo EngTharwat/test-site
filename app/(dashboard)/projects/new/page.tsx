@@ -159,10 +159,10 @@ export default function NewProjectPage() {
           </div>
         </div>
 
-        {/* Network Length Breakdown */}
+        {/* Project Length Breakdown */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Network Length Breakdown</h2>
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Project Length Breakdown</h2>
             {totalNetworkLength > 0 && (
               <span className="text-[12px] font-semibold text-[#2563FF]">
                 Total: {totalNetworkLength.toLocaleString()} m
