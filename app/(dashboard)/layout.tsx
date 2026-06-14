@@ -214,7 +214,7 @@ function Sidebar({
               <NavItem
                 href={`/projects/${projectId}/zones`}
                 icon={Icon.Zones}
-                label="Zones"
+                label="Areas"
                 active={is(`/projects/${projectId}/zones`)}
               />
             )}

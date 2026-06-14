@@ -142,9 +142,9 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
             className="text-[12px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white mb-1 flex items-center gap-1 transition-colors">
             ← Overview
           </button>
-          <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Zone Management</h1>
+          <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Areas &amp; Scopes</h1>
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">
-            Divide the network into construction zones by type
+            Group the project into areas — each area can hold several scopes
           </p>
         </div>
         {canEdit && (
@@ -152,7 +152,7 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
             onClick={() => { resetForm(); setEditZone(null); setShowForm(v => !v) }}
             className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors"
           >
-            + Add Zone
+            + Add Scope
           </button>
         )}
       </div>
@@ -161,11 +161,11 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
       {showForm && canEdit && (
         <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 mb-6">
           <h3 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider mb-4">
-            {editZone ? 'Edit Zone' : 'New Zone'}
+            {editZone ? 'Edit Scope' : 'New Scope'}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Zone Name *</label>
+              <label className="block text-[11px] font-semibold text-[#374151] dark:text-gray-300 mb-1.5">Area Name *</label>
               <input
                 className={inputCls} required
                 value={form.name}
@@ -252,15 +252,15 @@ export default function ZonesPage({ params }: { params: Promise<{ projectId: str
       ) : zones.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
           <div className="text-3xl mb-3">🗺️</div>
-          <p className="text-sm font-semibold text-black dark:text-white mb-1">No zones yet</p>
+          <p className="text-sm font-semibold text-black dark:text-white mb-1">No areas yet</p>
           <p className="text-[12px] text-[#6B7280] dark:text-gray-400">
-            Divide your project into geographical zones to organise segments.
+            Group your project into areas — each area can hold several scopes.
           </p>
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="grid grid-cols-[1fr_2fr] gap-4 px-6 py-3 bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">
-            <span>Zone Name</span><span>Scopes</span>
+            <span>Area</span><span>Scopes</span>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {/* Group by zone name — same name = one area with multiple scopes */}

@@ -490,11 +490,11 @@ export default function SegmentsPage({ params }: { params: Promise<{ projectId: 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 mb-5 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
         <select className={filterCls} value={fZone}     onChange={e => setFZone(e.target.value)}>
-          <option value="">All Zones</option>
+          <option value="">All Areas</option>
           {uniqueZoneNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <select className={filterCls} value={fType}     onChange={e => setFType(e.target.value)}>
-          <option value="">All Types</option>
+          <option value="">All Scopes</option>
           {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <input className={filterCls} style={{ width: 110 }} placeholder="Line No." value={fLine} onChange={e => setFLine(e.target.value)} />

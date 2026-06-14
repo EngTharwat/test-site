@@ -43,7 +43,7 @@ const T = {
   linkTitle:    { ar: 'ربط المقاطع بالتصريح',  en: 'Link segments to permit' },
   linkHint:     { ar: 'اختر المقاطع التابعة لهذا التصريح (كل مقطع يتبع تصريحًا واحدًا).',
                   en: 'Select the segments under this permit (each segment belongs to one permit).' },
-  allZones:     { ar: 'كل النطاقات',          en: 'All Zones' },
+  allZones:     { ar: 'كل النطاقات',          en: 'All Scopes' },
   selected:     { ar: 'مُختار',               en: 'selected' },
   save:         { ar: 'حفظ',                  en: 'Save' },
   cancel:       { ar: 'إلغاء',                en: 'Cancel' },
@@ -188,7 +188,7 @@ export default function PermitsPage({ params }: { params: Promise<{ projectId: s
     { key: 'lineNumber', ar: 'رقم الخط',     en: 'Line No.' },
     { key: 'fromMH',     ar: 'من',           en: 'From MH' },
     { key: 'toMH',       ar: 'إلى',          en: 'To MH' },
-    { key: 'zone',       ar: 'النطاق',       en: 'Zone' },
+    { key: 'zone',       ar: 'النطاق',       en: 'Scope' },
     { key: 'permitNo',   ar: 'رقم التصريح',  en: 'Permit No.' },
   ]
 

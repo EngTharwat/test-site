@@ -353,8 +353,9 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  // Embedded map is filtered to a single zone (slicer). '' until data loads.
-  const [mapZoneId, setMapZoneId] = useState<string>('')
+  // Embedded map is filtered to a single Area (slicer). An Area is a distinct
+  // zone name and may contain several scopes. '' until data loads.
+  const [mapArea, setMapArea] = useState<string>('')
 
   // Theme for the embedded map tiles
   const [isDark, setIsDark] = useState(false)
@@ -385,20 +386,25 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  // Default the map slicer to the zone with the most mapped segments (so the
-  // map opens on something), else the first point facility, else first zone.
+  // Default the map slicer to the Area with the most mapped segments (so the
+  // map opens on something), else the first area that has a point facility.
   useEffect(() => {
-    if (mapZoneId || !zones.length) return
+    if (mapArea || !zones.length) return
+    const zoneName = Object.fromEntries(zones.map(z => [z.id, z.name]))
     const counts: Record<string, number> = {}
-    segments.forEach(s => { if (hasCoordsOV(s)) counts[s.zoneId] = (counts[s.zoneId] || 0) + 1 })
+    segments.forEach(s => {
+      if (!hasCoordsOV(s)) return
+      const name = zoneName[s.zoneId]; if (!name) return
+      counts[name] = (counts[name] || 0) + 1
+    })
     let best = '', bestN = 0
-    zones.forEach(z => { const n = counts[z.id] || 0; if (n > bestN) { bestN = n; best = z.id } })
+    Object.entries(counts).forEach(([name, n]) => { if (n > bestN) { bestN = n; best = name } })
     if (!best) {
       const fac = zones.find(z => z.linear === false && z.lat != null && z.lng != null)
-      best = fac?.id ?? ''
+      best = fac?.name ?? ''
     }
-    if (best) setMapZoneId(best)
-  }, [zones, segments, mapZoneId])
+    if (best) setMapArea(best)
+  }, [zones, segments, mapArea])
 
   async function handleDelete() {
     if (!project || !confirm(`Delete "${project.name}"?\n\nAll data will be permanently removed.`)) return
@@ -481,31 +487,47 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const executedLength = segments.reduce((s, seg) => s + (seg.length || 0) * (seg.overallPct || 0) / 100, 0)
   const totalSegLength = segments.reduce((s, seg) => s + (seg.length || 0), 0)
 
-  // ── Zone-filtered map (slicer) ──────────────────────────────────────────────
-  // Zones that have something to draw: mapped segments, or a point facility.
+  // ── Areas ───────────────────────────────────────────────────────────────────
+  // An Area is a distinct zone name; it may hold several scopes (Gravity, Force
+  // Main…). Counts of areas use distinct names — never the number of scopes.
+  const areaNames = [...new Set(zones.map(z => z.name).filter(Boolean))]
+  const areaCount = areaNames.length
+
+  // ── Area-filtered map (slicer) ──────────────────────────────────────────────
+  // Areas that have something to draw: mapped segments, or a point facility.
   const mappedZoneIds   = new Set(mappedSegments.map(s => s.zoneId))
   const facilityZones   = zones.filter(z => z.linear === false && z.lat != null && z.lng != null)
-  const facilityZoneIds = new Set(facilityZones.map(z => z.id))
-  const mapZoneOptions  = zones.filter(z => mappedZoneIds.has(z.id) || facilityZoneIds.has(z.id))
+  const drawableNames   = new Set<string>()
+  zones.forEach(z => {
+    if (!z.name) return
+    if (mappedZoneIds.has(z.id) || (z.linear === false && z.lat != null && z.lng != null)) {
+      drawableNames.add(z.name)
+    }
+  })
+  const mapAreaOptions = areaNames.filter(n => drawableNames.has(n))
   // Fall back to the first option until the default effect sets the state, so
   // the slicer is never in an unmatched/empty state on the first render.
-  const activeZoneId = mapZoneId || mapZoneOptions[0]?.id || ''
+  const activeArea = mapArea || mapAreaOptions[0] || ''
 
-  const mapZone     = zones.find(z => z.id === activeZoneId) ?? null
-  const isFacility  = !!mapZone && facilityZoneIds.has(mapZone.id)
-  const zoneMapped  = mappedSegments.filter(s => s.zoneId === activeZoneId)
-  const zoneFacs    = (mapZone && isFacility)
-    ? [{ id: mapZone.id, name: mapZone.name, type: mapZone.type || 'Facility',
-         lat: mapZone.lat!, lng: mapZone.lng!, color: zoneColor(mapZone.type ?? '') }]
-    : []
+  // All scopes (zone docs) that make up the selected area
+  const areaZones     = zones.filter(z => z.name === activeArea)
+  const areaScopes    = [...new Set(areaZones.map(z => z.type).filter(Boolean))]
+  const areaZoneIds   = new Set(areaZones.map(z => z.id))
+  const areaMapped    = mappedSegments.filter(s => areaZoneIds.has(s.zoneId))
+  const areaFacs      = areaZones
+    .filter(z => z.linear === false && z.lat != null && z.lng != null)
+    .map(z => ({ id: z.id, name: z.name, type: z.type || 'Facility',
+                 lat: z.lat!, lng: z.lng!, color: zoneColor(z.type ?? '') }))
 
-  // Stats for the selected zone
-  const selStat       = zoneStats.find(z => z.id === activeZoneId) ?? null
-  const zoneSegsAll   = segments.filter(s => s.zoneId === activeZoneId)
-  const zonePct       = selStat?.avgPct ?? mapZone?.completionPct ?? 0
-  const zoneActStats  = ACTIVITY_KEYS.map(act => {
-    const done = zoneSegsAll.filter(s => ((s as any)[act.key]?.pct ?? 0) >= 100).length
-    return { ...act, done, pct: zoneSegsAll.length ? Math.round(done / zoneSegsAll.length * 100) : 0 }
+  // Aggregate stats across every scope in the selected area
+  const areaSegsAll   = segments.filter(s => areaZoneIds.has(s.zoneId))
+  const areaLen       = areaSegsAll.reduce((s, seg) => s + (seg.length || 0), 0)
+  const areaPct       = areaSegsAll.length
+    ? Math.round(areaSegsAll.reduce((s, seg) => s + (seg.overallPct || 0), 0) / areaSegsAll.length)
+    : 0
+  const areaActStats  = ACTIVITY_KEYS.map(act => {
+    const done = areaSegsAll.filter(s => ((s as any)[act.key]?.pct ?? 0) >= 100).length
+    return { ...act, done, pct: areaSegsAll.length ? Math.round(done / areaSegsAll.length * 100) : 0 }
   })
 
   return (
@@ -584,10 +606,11 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
           <RingStat pct={projectPct} size={72} stroke={8} />
           <div className="min-w-0">
             <div className="text-[10px] font-semibold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Overall Progress</div>
-            <div className="text-[12px] text-black dark:text-white font-semibold">{zones.length} zones · {totalSegs} segs</div>
-            {facilityZones.length > 0 && (
-              <div className="text-[11px] text-[#6B7280] dark:text-gray-400">🏢 {facilityZones.length} facilit{facilityZones.length === 1 ? 'y' : 'ies'}</div>
-            )}
+            <div className="text-[12px] text-black dark:text-white font-semibold">{areaCount} area{areaCount !== 1 ? 's' : ''} · {totalSegs} segs</div>
+            <div className="text-[11px] text-[#6B7280] dark:text-gray-400">
+              {zones.length} scope{zones.length !== 1 ? 's' : ''}
+              {facilityZones.length > 0 && ` · 🏢 ${facilityZones.length}`}
+            </div>
           </div>
         </div>
 
@@ -630,25 +653,24 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         </div>
       )}
 
-      {/* ── Project Map — filtered to one zone, with slicer + zone stats ──── */}
-      {mapZoneOptions.length > 0 && (
+      {/* ── Project Map — filtered to one Area, with slicer + area stats ──── */}
+      {mapAreaOptions.length > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-6 py-4 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-3">
               <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Project Map</h2>
-              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">filtered to one zone</span>
+              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">filtered to one area</span>
             </div>
             <div className="flex items-center gap-3">
-              {/* Zone slicer */}
+              {/* Area slicer — one entry per area (distinct name), not per scope */}
+              <label className="text-[11px] font-semibold text-[#6B7280] dark:text-gray-400 hidden sm:block">Area</label>
               <select
-                value={activeZoneId}
-                onChange={e => setMapZoneId(e.target.value)}
+                value={activeArea}
+                onChange={e => setMapArea(e.target.value)}
                 className="border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500 cursor-pointer max-w-[220px]"
               >
-                {mapZoneOptions.map(z => (
-                  <option key={z.id} value={z.id}>
-                    {z.name}{z.type ? ` — ${z.type}` : ''}
-                  </option>
+                {mapAreaOptions.map(name => (
+                  <option key={name} value={name}>{name}</option>
                 ))}
               </select>
               <button onClick={() => router.push(`/projects/${projectId}/map`)}
@@ -660,13 +682,13 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             {/* Map */}
             <div className="relative lg:col-span-2" style={{ height: 380 }}>
               <LeafletMap
-                key={activeZoneId}
-                mapped={zoneMapped} facilities={zoneFacs}
+                key={activeArea}
+                mapped={areaMapped} facilities={areaFacs}
                 isDark={isDark} onSelect={() => {}} selected={null} fitNonce={0}
                 lineWeight={project?.mapStyle?.lineWeight}
                 facilityShape={project?.mapStyle?.facilityShape}
                 facilitySize={project?.mapStyle?.facilitySize} />
-              {zoneMapped.length > 0 && (
+              {areaMapped.length > 0 && (
                 <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-gray-900/95 rounded-lg border border-gray-200 dark:border-gray-700 shadow px-3 py-2">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     {[...OV_ACTIVITIES.map((a, i) => ({ label: ACTIVITY_KEYS[i].label, color: a.color })),
@@ -681,29 +703,42 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               )}
             </div>
 
-            {/* Selected-zone stats */}
+            {/* Selected-area stats — aggregated across all its scopes */}
             <div className="border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-800 p-5 flex flex-col">
               <div className="flex items-start gap-4 mb-4">
-                <RingStat pct={zonePct} size={84} stroke={9} />
+                <RingStat pct={areaPct} size={84} stroke={9} />
                 <div className="min-w-0">
-                  <div className="text-[14px] font-bold text-black dark:text-white truncate">{mapZone?.name ?? '—'}</div>
-                  <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mb-1">
-                    {mapZone?.type || 'Untyped'}{isFacility ? ' · 🏢 facility' : ''}
-                  </div>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{ background: `${pctColor(zonePct)}1a`, color: pctColor(zonePct) }}>
-                    {zonePct}% complete
+                  <div className="text-[10px] font-semibold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Area</div>
+                  <div className="text-[14px] font-bold text-black dark:text-white truncate">{activeArea || '—'}</div>
+                  <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: `${pctColor(areaPct)}1a`, color: pctColor(areaPct) }}>
+                    {areaPct}% complete
                   </span>
                 </div>
               </div>
 
+              {/* Scopes contained in this area */}
+              {areaScopes.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                    {areaScopes.length} scope{areaScopes.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {areaScopes.map(sc => (
+                      <span key={sc} className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+                        style={{ background: `${zoneColor(sc)}1a`, color: zoneColor(sc) }}>{sc}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Numbers */}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 {[
-                  { label: 'Segments', value: fmtN(selStat?.segCount ?? 0) },
-                  { label: 'Length',   value: formatLength(selStat?.totalLen ?? 0) },
-                  { label: 'Done',     value: fmtN(zoneSegsAll.filter(s => (s.overallPct || 0) >= 100).length) },
-                  { label: 'Not started', value: fmtN(zoneSegsAll.filter(s => (s.overallPct || 0) === 0).length) },
+                  { label: 'Segments', value: fmtN(areaSegsAll.length) },
+                  { label: 'Length',   value: formatLength(areaLen) },
+                  { label: 'Done',     value: fmtN(areaSegsAll.filter(s => (s.overallPct || 0) >= 100).length) },
+                  { label: 'Not started', value: fmtN(areaSegsAll.filter(s => (s.overallPct || 0) === 0).length) },
                 ].map(s => (
                   <div key={s.label} className="bg-[#F9FAFB] dark:bg-gray-800/60 rounded-lg px-3 py-2">
                     <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{s.label}</div>
@@ -712,28 +747,28 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                 ))}
               </div>
 
-              {/* Per-activity completion for this zone */}
-              {zoneSegsAll.length > 0 ? (
+              {/* Per-activity completion across the whole area */}
+              {areaSegsAll.length > 0 ? (
                 <div className="space-y-2 mt-auto">
-                  {zoneActStats.map(act => (
+                  {areaActStats.map(act => (
                     <div key={act.key}>
                       <div className="flex justify-between items-center text-[11px] mb-1">
                         <div className="flex items-center gap-1.5">
                           <span className="inline-block w-2 h-2 rounded-full" style={{ background: act.color }} />
                           <span className="text-black dark:text-white">{act.label}</span>
                         </div>
-                        <span className="text-[#6B7280] dark:text-gray-400">{act.done}/{zoneSegsAll.length} · {act.pct}%</span>
+                        <span className="text-[#6B7280] dark:text-gray-400">{act.done}/{areaSegsAll.length} · {act.pct}%</span>
                       </div>
                       <Bar pct={act.pct} color={act.color} height={4} />
                     </div>
                   ))}
                 </div>
-              ) : isFacility ? (
+              ) : areaFacs.length > 0 ? (
                 <p className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-auto font-mono">
-                  📍 {mapZone?.lat?.toFixed(6)}, {mapZone?.lng?.toFixed(6)}
+                  📍 {areaFacs[0].lat.toFixed(6)}, {areaFacs[0].lng.toFixed(6)}
                 </p>
               ) : (
-                <p className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-auto">No mapped segments in this zone.</p>
+                <p className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-auto">No mapped segments in this area.</p>
               )}
             </div>
           </div>
@@ -775,16 +810,16 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         {/* Zone Progress by Scope — one table per type (Gravity / Force Main …) */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Zone Progress by Scope</h2>
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Progress by Scope</h2>
             <button onClick={() => router.push(`/projects/${projectId}/zones`)}
               className="text-[11px] text-[#2563FF] hover:underline">View all →</button>
           </div>
 
           {zones.length === 0 ? (
             <div className="px-6 py-8 text-center">
-              <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No zones yet</p>
+              <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No areas yet</p>
               <button onClick={() => router.push(`/projects/${projectId}/zones`)}
-                className="text-sm font-semibold text-black dark:text-white hover:underline">+ Add Zone</button>
+                className="text-sm font-semibold text-black dark:text-white hover:underline">+ Add Area</button>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -800,7 +835,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[12px] font-bold text-black dark:text-white">{scope}</span>
                       <span className="text-[10px] text-[#6B7280] dark:text-gray-400">
-                        {list.length} zone{list.length !== 1 ? 's' : ''} · {segSum} segs · {formatLength(lenSum)} · {avg}%
+                        {list.length} area{list.length !== 1 ? 's' : ''} · {segSum} segs · {formatLength(lenSum)} · {avg}%
                       </span>
                     </div>
                     {/* Per-zone rows for this scope */}
@@ -922,7 +957,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       {/* ── Quick Navigation ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Zones',    icon: '🗺️', path: `zones`,    desc: `${zones.length} zones` },
+          { label: 'Areas',    icon: '🗺️', path: `zones`,    desc: `${areaCount} area${areaCount !== 1 ? 's' : ''} · ${zones.length} scope${zones.length !== 1 ? 's' : ''}` },
           { label: 'Segments', icon: '🔧', path: `segments`, desc: `${totalSegs} segments` },
           { label: 'Progress', icon: '📊', path: `progress`, desc: `${projectPct}% overall` },
           { label: 'Back',     icon: '←',  path: null,       desc: 'Portfolio' },

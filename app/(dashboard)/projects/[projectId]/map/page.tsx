@@ -230,11 +230,11 @@ export default function MapPage({ params }: { params: Promise<{ projectId: strin
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <select className={filterCls} value={fZone}     onChange={e => setFZone(e.target.value)}>
-            <option value="">All Zones</option>
+            <option value="">All Areas</option>
             {uniqueZoneNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
           <select className={filterCls} value={fType}     onChange={e => setFType(e.target.value)}>
-            <option value="">All Types</option>
+            <option value="">All Scopes</option>
             {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <select className={filterCls} value={fMaterial} onChange={e => setFMaterial(e.target.value)}>
