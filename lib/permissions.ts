@@ -13,6 +13,7 @@ export interface PagePermissions {
   progress:  PageAccess
   permits:   PageAccess
   cash_flow: PageAccess
+  boq:       PageAccess
   map:       MapAccess
 }
 
@@ -35,7 +36,7 @@ export interface MemberPermissions {
 
 export const DEFAULT_PAGE_PERMISSIONS: PagePermissions = {
   overview: 'none', zones: 'none', segments: 'none',
-  progress: 'none', permits: 'none', cash_flow: 'none', map: 'none',
+  progress: 'none', permits: 'none', cash_flow: 'none', boq: 'none', map: 'none',
 }
 
 /** Human-readable label for each page. */
@@ -46,16 +47,17 @@ export const PAGE_LABELS: Record<keyof PagePermissions, string> = {
   progress:  'Progress',
   permits:   'Permits',
   cash_flow: 'Cash Flow',
+  boq:       'BOQ',
   map:       'Map / GIS',
 }
 
 /** Pages that support the 'edit' access level (map is view-only). */
-export const EDITABLE_PAGES = ['overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow'] as const
+export const EDITABLE_PAGES = ['overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow', 'boq'] as const
 export type EditablePage = (typeof EDITABLE_PAGES)[number]
 
 /** All pages in display order. */
 export const ALL_PAGES: (keyof PagePermissions)[] = [
-  'overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow', 'map',
+  'overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow', 'boq', 'map',
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -92,7 +94,8 @@ export function canViewPage(
 ): boolean {
   if (!permissions) return false
   if (!canAccessProject(permissions, projectId)) return false
-  return getProjectPagePermissions(permissions, projectId)[page] !== 'none'
+  // Missing keys (e.g. a page added after a member was created) default to 'none'.
+  return (getProjectPagePermissions(permissions, projectId)[page] ?? 'none') !== 'none'
 }
 
 /** True if the member can edit a given page for a given project. */

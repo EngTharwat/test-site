@@ -109,6 +109,32 @@ export interface Project {
   updatedAt?: FirestoreTimestamp
 }
 
+// ── BOQ (Bill of Quantities) ───────────────────────────────────────────────────
+/** Trades a BOQ line item can belong to. */
+export const BOQ_TRADES = [
+  'Civil', 'Mechanical', 'Electrical', 'Instrumentation',
+  'HVAC', 'Plumbing', 'Architectural', 'Landscaping', 'Other',
+] as const
+export type BoqTrade = (typeof BOQ_TRADES)[number]
+
+export interface BoqItem {
+  id:          string   // Firestore document id
+  projectId:   string
+  scope:       string   // mandatory — one of the project's valid scopes
+  area?:       string   // a project area (zone name)
+  building?:   string
+  trade?:      string   // Civil, Mechanical, …
+  activity?:   string
+  code:        string   // mandatory — the BOQ item "ID" (e.g. C-101)
+  description: string   // mandatory
+  rate:        number   // mandatory — unit price
+  qty:         number   // mandatory — quantity
+  // totalPrice is derived (rate × qty) and stored for sorting/summation
+  totalPrice:  number
+  createdAt?:  FirestoreTimestamp
+  updatedAt?:  FirestoreTimestamp
+}
+
 // ── Zone ─────────────────────────────────────────────────────────────────────
 export interface Zone {
   id:        string

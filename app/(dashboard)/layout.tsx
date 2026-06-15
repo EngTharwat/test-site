@@ -72,6 +72,14 @@ const Icon = {
       <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
     </svg>
   ),
+  Boq: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-3"/>
+      <rect x="9" y="1" width="6" height="4" rx="1"/>
+      <line x1="8" y1="11" x2="13" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/>
+      <line x1="16" y1="11" x2="16" y2="11"/><line x1="16" y1="15" x2="16" y2="15"/>
+    </svg>
+  ),
   Team: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -252,6 +260,15 @@ function Sidebar({
                 icon={Icon.CashFlow}
                 label="Cash Flow"
                 active={is(`/projects/${projectId}/cashflow`)}
+              />
+            )}
+
+            {(isAdmin || (pagePerm && (pagePerm.boq ?? 'none') !== 'none')) && (
+              <NavItem
+                href={`/projects/${projectId}/boq`}
+                icon={Icon.Boq}
+                label="BOQ"
+                active={is(`/projects/${projectId}/boq`)}
               />
             )}
 

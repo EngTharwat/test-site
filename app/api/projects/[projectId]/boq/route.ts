@@ -18,23 +18,20 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
-      // Zone metadata is also needed by Segments, Progress, Map and BOQ views
-      if (pagePerm.zones === 'none' && pagePerm.segments === 'none'
-          && pagePerm.progress === 'none' && pagePerm.map === 'none'
-          && (pagePerm.boq ?? 'none') === 'none') {
+      if ((pagePerm.boq ?? 'none') === 'none') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
     const snap = await adminDb
       .collection('projects').doc(projectId)
-      .collection('zones').get()
+      .collection('boq').get()
 
-    const zones = snap.docs
+    const items = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a: any, b: any) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
 
-    return Response.json(zones)
+    return Response.json(items)
   } catch (err: any) {
     return Response.json({ error: err.message }, { status: err.status ?? 500 })
   }
@@ -51,37 +48,44 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
-      if (pagePerm.zones !== 'edit') {
-        return Response.json({ error: 'Forbidden — cannot create zones' }, { status: 403 })
+      if (pagePerm.boq !== 'edit') {
+        return Response.json({ error: 'Forbidden — cannot create BOQ items' }, { status: 403 })
       }
     }
 
     const body = await request.json()
-    const { name, type, linear, lat, lng } = body
+    const scope       = String(body.scope ?? '').trim()
+    const code        = String(body.code ?? '').trim()
+    const description = String(body.description ?? '').trim()
+    const rate        = Number(body.rate)
+    const qty         = Number(body.qty)
 
-    if (!name?.trim()) return Response.json({ error: 'Zone name is required' }, { status: 400 })
+    // Mandatory: scope, ID (code), description, rate, qty
+    if (!scope)       return Response.json({ error: 'Scope is required' }, { status: 400 })
+    if (!code)        return Response.json({ error: 'ID is required' }, { status: 400 })
+    if (!description) return Response.json({ error: 'Description is required' }, { status: 400 })
+    if (!Number.isFinite(rate)) return Response.json({ error: 'Rate is required' }, { status: 400 })
+    if (!Number.isFinite(qty))  return Response.json({ error: 'Qty is required' }, { status: 400 })
 
-    const isLinear = linear !== false   // default true (linear scope)
     const data = {
       projectId,
-      name: name.trim(),
-      type: type?.trim() ?? '',
-      linear: isLinear,
-      // Point facilities store a single coordinate; linear scopes don't
-      lat: !isLinear && lat != null ? Number(lat) : null,
-      lng: !isLinear && lng != null ? Number(lng) : null,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      scope,
+      area:        String(body.area ?? '').trim(),
+      building:    String(body.building ?? '').trim(),
+      trade:       String(body.trade ?? '').trim(),
+      activity:    String(body.activity ?? '').trim(),
+      code,
+      description,
+      rate,
+      qty,
+      totalPrice:  rate * qty,
+      createdAt:   FieldValue.serverTimestamp(),
+      updatedAt:   FieldValue.serverTimestamp(),
     }
 
     const ref = await adminDb
       .collection('projects').doc(projectId)
-      .collection('zones').add(data)
-
-    await adminDb.collection('projects').doc(projectId).update({
-      totalZones: FieldValue.increment(1),
-      updatedAt:  FieldValue.serverTimestamp(),
-    })
+      .collection('boq').add(data)
 
     const doc = await ref.get()
     return Response.json({ id: ref.id, ...doc.data() }, { status: 201 })
