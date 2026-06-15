@@ -90,10 +90,13 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const { lines, total } = sanitizeLines(body.lines)
 
+    const paid = !!body.paid
     const data = {
       projectId, number, date,
       notes: String(body.notes ?? '').trim(),
       lines, total,
+      paid,
+      paymentDate: paid ? String(body.paymentDate ?? '').trim() : '',
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }

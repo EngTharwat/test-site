@@ -36,7 +36,7 @@ const hasCoordsOV = (s: Segment) =>
   s.startLat != null && s.startLng != null && s.endLat != null && s.endLng != null
 const pctColor = (p: number) => p >= 80 ? '#22c55e' : p >= 40 ? '#f97316' : '#2563FF'
 import {
-  Project, Zone, Segment, Permit, BoqItem,
+  Project, Zone, Segment, Permit, BoqItem, Invoice,
   ProjectStatus, ProjectType, Currency,
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
@@ -344,12 +344,14 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const canEdit     = isAdmin || pagePerm?.overview === 'edit'
   const canSeeZones = isAdmin || (pagePerm && pagePerm.zones !== 'none')
   const canSeeBoq   = isAdmin || (pagePerm && (pagePerm.boq ?? 'none') !== 'none')
+  const canSeeInv   = isAdmin || (pagePerm && (pagePerm.invoices ?? 'none') !== 'none')
 
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
   const [segments, setSegments] = useState<Segment[]>([])
   const [permits,  setPermits]  = useState<Permit[]>([])
   const [boq,      setBoq]      = useState<BoqItem[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -380,6 +382,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       // Permits + BOQ are optional (member may lack access) — never block the page.
       api.get(`/api/projects/${projectId}/permits`).then(setPermits).catch(() => setPermits([]))
       api.get(`/api/projects/${projectId}/boq`).then(setBoq).catch(() => setBoq([]))
+      api.get(`/api/projects/${projectId}/invoices`).then(setInvoices).catch(() => setInvoices([]))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -547,6 +550,14 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const BOQ_PALETTE = ['#2563FF','#7C3AED','#22c55e','#f97316','#ef4444','#eab308','#06b6d4','#0891b2','#6366f1']
   // BOQ value as a share of the contract value (when both are known)
   const boqVsContractPct = project.contractValue > 0 ? Math.round(boqTotal / project.contractValue * 100) : null
+
+  // ── Invoice stats ──────────────────────────────────────────────────────────
+  const invTotal     = invoices.reduce((s, iv) => s + (iv.total || 0), 0)
+  const invPaid      = invoices.filter(iv => iv.paid).reduce((s, iv) => s + (iv.total || 0), 0)
+  const invPending   = invTotal - invPaid
+  const invCount     = invoices.length
+  // Invoiced as a share of the contract value (billing progress)
+  const invVsContractPct = project.contractValue > 0 ? Math.round(invTotal / project.contractValue * 100) : null
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -728,6 +739,51 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Invoices summary ─────────────────────────────────────────────── */}
+      {canSeeInv && invCount > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">🧾 Invoices</h2>
+            <button onClick={() => router.push(`/projects/${projectId}/invoices`)}
+              className="text-[11px] text-[#2563FF] hover:underline">View invoices →</button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Total Invoiced</div>
+              <div className="text-2xl font-bold tracking-[-0.5px] text-black dark:text-white">{formatCurrency(invTotal, project.currency)}</div>
+              <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-0.5">{invCount} invoice{invCount !== 1 ? 's' : ''}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">% of Contract</div>
+              <div className="text-2xl font-bold tracking-[-0.5px]" style={{ color: pctColor(invVsContractPct ?? 0) }}>
+                {invVsContractPct !== null ? `${invVsContractPct}%` : '—'}
+              </div>
+              <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-0.5">of {formatCurrency(project.contractValue, project.currency)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Paid</div>
+              <div className="text-2xl font-bold tracking-[-0.5px] text-green-600 dark:text-green-400">{formatCurrency(invPaid, project.currency)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Pending</div>
+              <div className="text-2xl font-bold tracking-[-0.5px] text-amber-600 dark:text-amber-400">{formatCurrency(invPending, project.currency)}</div>
+            </div>
+          </div>
+
+          {/* Invoiced vs contract progress */}
+          {invVsContractPct !== null && (
+            <div>
+              <div className="flex justify-between text-[11px] text-[#6B7280] dark:text-gray-400 mb-1.5">
+                <span>Billed to date</span>
+                <span>{invVsContractPct}% of contract</span>
+              </div>
+              <Bar pct={invVsContractPct} color="#2563FF" height={8} />
+            </div>
+          )}
         </div>
       )}
 

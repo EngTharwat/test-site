@@ -17,6 +17,8 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 interface BulkInvoice {
   number: string
   date:   string
+  paid:   boolean
+  paymentDate: string
   lines:  InvoiceLine[]
   total:  number
   unknownCodes: string[]   // codes in the file that don't match any BOQ item
@@ -62,6 +64,8 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
   const [invNumber, setInvNumber] = useState('')
   const [invDate,   setInvDate]   = useState(todayISO())
   const [invNotes,  setInvNotes]  = useState('')
+  const [invPaid,   setInvPaid]   = useState(false)
+  const [invPayDate, setInvPayDate] = useState('')
   const [qtyMap,    setQtyMap]    = useState<Record<string, string>>({})
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [boqSearch, setBoqSearch] = useState('')
@@ -120,6 +124,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
   // ── Form actions ─────────────────────────────────────────────────────────────
   function openNew() {
     setEditInv(null); setInvNumber(''); setInvDate(todayISO()); setInvNotes('')
+    setInvPaid(false); setInvPayDate('')
     setQtyMap({}); setBoqSearch(''); setError('')
     setShowForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -127,6 +132,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
 
   function openEdit(inv: Invoice) {
     setEditInv(inv); setInvNumber(inv.number); setInvDate(inv.date || todayISO()); setInvNotes(inv.notes ?? '')
+    setInvPaid(!!inv.paid); setInvPayDate(inv.paymentDate ?? '')
     const m: Record<string, string> = {}
     inv.lines.forEach(l => { if (l.boqId) m[l.boqId] = String(l.qty) })
     setQtyMap(m); setBoqSearch(''); setError('')
@@ -148,7 +154,10 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
       scope: it.scope, area: it.area ?? '', building: it.building ?? '',
       rate: it.rate || 0, qty, amount: (it.rate || 0) * qty,
     }))
-    const body = { number: invNumber.trim(), date: invDate, notes: invNotes.trim(), lines }
+    const body = {
+      number: invNumber.trim(), date: invDate, notes: invNotes.trim(), lines,
+      paid: invPaid, paymentDate: invPaid ? invPayDate : '',
+    }
     try {
       if (editInv) {
         const updated = await api.patch(`/api/projects/${projectId}/invoices/${editInv.id}`, body)
@@ -178,10 +187,24 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
   const toggleExpand = (id: string) =>
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
+  async function togglePaid(inv: Invoice) {
+    const paid = !inv.paid
+    try {
+      const updated = await api.patch(`/api/projects/${projectId}/invoices/${inv.id}`, {
+        paid, paymentDate: paid ? (inv.paymentDate || todayISO()) : '',
+      })
+      setInvoices(prev => prev.map(iv => iv.id === inv.id ? updated : iv))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update payment status')
+    }
+  }
+
   const grandInvoiced = invoices.reduce((s, iv) => s + (iv.total || 0), 0)
+  const paidTotal     = invoices.filter(iv => iv.paid).reduce((s, iv) => s + (iv.total || 0), 0)
+  const pendingTotal  = grandInvoiced - paidTotal
 
   // ── Bulk upload (many invoices in one Excel) ─────────────────────────────────
-  const BULK_HEADERS = ['Invoice No.', 'Date', 'ID', 'Description', 'Qty']
+  const BULK_HEADERS = ['Invoice No.', 'Date', 'ID', 'Description', 'Qty', 'Paid', 'Payment Date']
 
   async function downloadBulkTemplate() {
     const XLSX = await import('xlsx')
@@ -192,7 +215,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
       ? boq.map(it => ['INV-001', example, it.code, it.description, ''])
       : [['INV-001', example, 'C-101', 'Example item', '10']]
     const ws = XLSX.utils.aoa_to_sheet([BULK_HEADERS, ...rows])
-    ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 44 }, { wch: 12 }]
+    ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 44 }, { wch: 12 }, { wch: 10 }, { wch: 14 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Invoices')
     // Reference sheet: existing BOQ items
@@ -223,15 +246,18 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
       const [headerRow, ...dataRows] = rows
       const find = (re: RegExp) => headerRow.findIndex((_: any, i: number) => re.test(String(headerRow[i])))
       const col = {
-        number: find(/invoice|\bno\.?\b/i),
-        date:   find(/date/i),
-        code:   find(/\bid\b|code/i),
-        qty:    find(/qty|quan/i),
+        number:  find(/invoice|\bno\.?\b/i),
+        date:    find(/^date|invoice ?date/i),
+        code:    find(/\bid\b|code/i),
+        qty:     find(/qty|quan/i),
+        paid:    find(/paid/i),
+        payDate: find(/payment ?date|pay ?date|paid ?date/i),
       }
       const cell = (row: any[], i: number) => i >= 0 ? row[i] : ''
+      const isTruthy = (v: any) => /^(y|yes|true|1|paid|done|✓)/i.test(String(v ?? '').trim())
 
       // Group rows by invoice number, preserving first-seen order.
-      const groups = new Map<string, { date: string; rows: { code: string; qty: number }[] }>()
+      const groups = new Map<string, { date: string; paid: boolean; paymentDate: string; rows: { code: string; qty: number }[] }>()
       let skipped = 0
       dataRows.forEach(row => {
         if (!row.some((c: any) => String(c).trim())) return
@@ -240,8 +266,11 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
         const date = toISODate(cell(row, col.date))
         const code = String(cell(row, col.code) ?? '').trim()
         const qty  = parseFloat(String(cell(row, col.qty) ?? '')) || 0
-        const g = groups.get(number) ?? groups.set(number, { date: '', rows: [] }).get(number)!
+        const g = groups.get(number) ?? groups.set(number, { date: '', paid: false, paymentDate: '', rows: [] }).get(number)!
         if (date && !g.date) g.date = date
+        if (col.paid >= 0 && isTruthy(cell(row, col.paid))) g.paid = true
+        const pd = toISODate(cell(row, col.payDate))
+        if (pd && !g.paymentDate) g.paymentDate = pd
         g.rows.push({ code, qty })
       })
 
@@ -260,8 +289,9 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
         })
         const total = lines.reduce((s, l) => s + l.amount, 0)
         const existing = byNumber.get(number.trim().toLowerCase())
+        const paid = g.paid || !!g.paymentDate
         const error = !g.date ? 'Missing date' : lines.length === 0 ? 'No valid lines' : undefined
-        return { number, date: g.date, lines, total, unknownCodes, isUpdate: !!existing, existingId: existing?.id, error }
+        return { number, date: g.date, paid, paymentDate: paid ? (g.paymentDate || g.date) : '', lines, total, unknownCodes, isUpdate: !!existing, existingId: existing?.id, error }
       })
 
       setBulkInvoices(drafts); setBulkSkipped(skipped); setShowBulk(true)
@@ -279,12 +309,12 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
       try {
         if (b.isUpdate && b.existingId) {
           const updated = await api.patch(`/api/projects/${projectId}/invoices/${b.existingId}`, {
-            number: b.number, date: b.date, lines: b.lines,
+            number: b.number, date: b.date, lines: b.lines, paid: b.paid, paymentDate: b.paymentDate,
           })
           setInvoices(prev => prev.map(iv => iv.id === b.existingId ? updated : iv))
         } else {
           const created = await api.post(`/api/projects/${projectId}/invoices`, {
-            number: b.number, date: b.date, notes: '', lines: b.lines,
+            number: b.number, date: b.date, notes: '', lines: b.lines, paid: b.paid, paymentDate: b.paymentDate,
           })
           setInvoices(prev => [created, ...prev])
         }
@@ -416,6 +446,23 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
             </div>
           </div>
 
+          {/* Payment status */}
+          <div className="flex flex-wrap items-center gap-4 mb-5">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={invPaid}
+                onChange={e => { setInvPaid(e.target.checked); if (e.target.checked && !invPayDate) setInvPayDate(todayISO()) }}
+                className="w-4 h-4 rounded accent-[#22c55e] cursor-pointer" />
+              <span className="text-[12px] font-semibold text-black dark:text-white">Paid</span>
+            </label>
+            {invPaid && (
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">Payment date</label>
+                <input type="date" value={invPayDate} onChange={e => setInvPayDate(e.target.value)}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-[12px] bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-500" />
+              </div>
+            )}
+          </div>
+
           {/* BOQ quantity entry */}
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-[12px] font-bold text-black dark:text-white">Quantities per BOQ item</h4>
@@ -522,7 +569,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
           <table className="w-full text-[12px]">
             <thead>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                {['Invoice No.','Date','Items','Total',''].map((h, i) => (
+                {['Invoice No.','Date','Items','Total','Status',''].map((h, i) => (
                   <th key={i} className={`px-4 py-3 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i === 3 ? 'text-right' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
@@ -539,6 +586,25 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
                       <td className="px-4 py-3 text-[#374151] dark:text-gray-300 whitespace-nowrap">{inv.date || '—'}</td>
                       <td className="px-4 py-3 text-[#374151] dark:text-gray-300">{inv.lines?.length ?? 0}</td>
                       <td className="px-4 py-3 text-right font-bold text-black dark:text-white tabular-nums whitespace-nowrap">{money(inv.total || 0)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        {canEdit ? (
+                          <button onClick={() => togglePaid(inv)} title="Toggle paid"
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                              inv.paid
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 hover:bg-amber-200'
+                            }`}>
+                            {inv.paid ? '✓ Paid' : 'Unpaid'}
+                          </button>
+                        ) : (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${inv.paid ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                            {inv.paid ? '✓ Paid' : 'Unpaid'}
+                          </span>
+                        )}
+                        {inv.paid && inv.paymentDate && (
+                          <span className="ml-2 text-[10px] text-[#9CA3AF] dark:text-gray-500">{inv.paymentDate}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex gap-2 justify-end whitespace-nowrap">
                           {canEdit && (
@@ -552,7 +618,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
                     </tr>
                     {isOpen && (
                       <tr key={`${inv.id}-detail`} className="bg-[#F9FAFB] dark:bg-gray-800/40">
-                        <td colSpan={5} className="px-4 py-3">
+                        <td colSpan={6} className="px-4 py-3">
                           {inv.notes && <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mb-2">📝 {inv.notes}</p>}
                           <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                             <table className="w-full text-[11px]">
@@ -591,7 +657,11 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
                   Total invoiced ({invoices.length})
                 </td>
                 <td className="px-4 py-3 text-right text-[12px] font-bold text-black dark:text-white tabular-nums whitespace-nowrap">{money(grandInvoiced)}</td>
-                <td />
+                <td className="px-4 py-3 text-[11px] text-[#6B7280] dark:text-gray-400 whitespace-nowrap" colSpan={2}>
+                  <span className="text-green-600 dark:text-green-400 font-semibold">{money(paidTotal)} paid</span>
+                  {' · '}
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold">{money(pendingTotal)} pending</span>
+                </td>
               </tr>
             </tfoot>
           </table>

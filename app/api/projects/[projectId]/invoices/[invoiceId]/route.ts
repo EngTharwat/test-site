@@ -54,6 +54,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (body.number !== undefined) update.number = String(body.number ?? '').trim()
     if (body.date   !== undefined) update.date   = String(body.date ?? '').trim()
     if (body.notes  !== undefined) update.notes  = String(body.notes ?? '').trim()
+    if (body.paid   !== undefined) {
+      const paid = !!body.paid
+      update.paid = paid
+      // Clear the payment date when an invoice is marked unpaid.
+      update.paymentDate = paid ? String(body.paymentDate ?? existing.data()!.paymentDate ?? '').trim() : ''
+    } else if (body.paymentDate !== undefined) {
+      update.paymentDate = String(body.paymentDate ?? '').trim()
+    }
     if (body.lines  !== undefined) {
       const { lines, total } = sanitizeLines(body.lines)
       update.lines = lines

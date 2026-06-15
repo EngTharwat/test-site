@@ -151,15 +151,17 @@ export interface InvoiceLine {
 }
 
 export interface Invoice {
-  id:         string
-  projectId:  string
-  number:     string    // invoice No.
-  date:       string    // 'YYYY-MM-DD'
-  notes?:     string
-  lines:      InvoiceLine[]
-  total:      number     // sum of line amounts
-  createdAt?: FirestoreTimestamp
-  updatedAt?: FirestoreTimestamp
+  id:          string
+  projectId:   string
+  number:      string    // invoice No.
+  date:        string    // 'YYYY-MM-DD'
+  notes?:      string
+  lines:       InvoiceLine[]
+  total:       number    // sum of line amounts
+  paid?:       boolean   // whether the invoice has been paid
+  paymentDate?: string   // 'YYYY-MM-DD' — when it was paid
+  createdAt?:  FirestoreTimestamp
+  updatedAt?:  FirestoreTimestamp
 }
 
 // ── Zone ─────────────────────────────────────────────────────────────────────
