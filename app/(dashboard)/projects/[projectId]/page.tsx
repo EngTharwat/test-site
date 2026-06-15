@@ -36,7 +36,7 @@ const hasCoordsOV = (s: Segment) =>
   s.startLat != null && s.startLng != null && s.endLat != null && s.endLng != null
 const pctColor = (p: number) => p >= 80 ? '#22c55e' : p >= 40 ? '#f97316' : '#2563FF'
 import {
-  Project, Zone, Segment, Permit,
+  Project, Zone, Segment, Permit, BoqItem,
   ProjectStatus, ProjectType, Currency,
   STATUS_LABELS, STATUS_COLORS, PROJECT_TYPE_LABELS,
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
@@ -343,11 +343,13 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     ? getProjectPagePermissions(profile.permissions, projectId) : null
   const canEdit     = isAdmin || pagePerm?.overview === 'edit'
   const canSeeZones = isAdmin || (pagePerm && pagePerm.zones !== 'none')
+  const canSeeBoq   = isAdmin || (pagePerm && (pagePerm.boq ?? 'none') !== 'none')
 
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
   const [segments, setSegments] = useState<Segment[]>([])
   const [permits,  setPermits]  = useState<Permit[]>([])
+  const [boq,      setBoq]      = useState<BoqItem[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
   const [editOpen, setEditOpen] = useState(false)
@@ -375,8 +377,9 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         api.get(`/api/projects/${projectId}/segments`),
       ])
       setProject(proj); setZones(zoneData); setSegments(segData)
-      // Permits are optional (member may lack access) — never block the page.
+      // Permits + BOQ are optional (member may lack access) — never block the page.
       api.get(`/api/projects/${projectId}/permits`).then(setPermits).catch(() => setPermits([]))
+      api.get(`/api/projects/${projectId}/boq`).then(setBoq).catch(() => setBoq([]))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -530,6 +533,21 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     return { ...act, done, pct: areaSegsAll.length ? Math.round(done / areaSegsAll.length * 100) : 0 }
   })
 
+  // ── BOQ stats ────────────────────────────────────────────────────────────────
+  const boqTotal  = boq.reduce((s, it) => s + (it.totalPrice || 0), 0)
+  const boqCount  = boq.length
+  // Break the BOQ value down by Trade; fall back to Scope when no trades are set.
+  const boqByTrade = boq.some(it => it.trade)
+  const boqGroupKey = (it: BoqItem) => (boqByTrade ? (it.trade || 'Other') : (it.scope || '—'))
+  const boqBreakdown = (() => {
+    const map = new Map<string, number>()
+    boq.forEach(it => map.set(boqGroupKey(it), (map.get(boqGroupKey(it)) || 0) + (it.totalPrice || 0)))
+    return [...map.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
+  })()
+  const BOQ_PALETTE = ['#2563FF','#7C3AED','#22c55e','#f97316','#ef4444','#eab308','#06b6d4','#0891b2','#6366f1']
+  // BOQ value as a share of the contract value (when both are known)
+  const boqVsContractPct = project.contractValue > 0 ? Math.round(boqTotal / project.contractValue * 100) : null
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
 
@@ -650,6 +668,66 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               {' — review before excavation continues.'}
             </p>
           )}
+        </div>
+      )}
+
+      {/* ── BOQ summary ──────────────────────────────────────────────────── */}
+      {canSeeBoq && boqCount > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">🧾 Bill of Quantities</h2>
+            <button onClick={() => router.push(`/projects/${projectId}/boq`)}
+              className="text-[11px] text-[#2563FF] hover:underline">View BOQ →</button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Headline numbers */}
+            <div className="lg:col-span-1 flex flex-col justify-center gap-3 lg:border-r border-gray-100 dark:border-gray-800 lg:pr-5">
+              <div>
+                <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Total BOQ Value</div>
+                <div className="text-2xl font-bold tracking-[-0.5px] text-black dark:text-white">{formatCurrency(boqTotal, project.currency)}</div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div>
+                  <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Items</div>
+                  <div className="text-[15px] font-bold text-black dark:text-white">{fmtN(boqCount)}</div>
+                </div>
+                {boqVsContractPct !== null && (
+                  <div>
+                    <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">of Contract</div>
+                    <div className="text-[15px] font-bold text-black dark:text-white">{boqVsContractPct}%</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Breakdown by trade (or scope) */}
+            <div className="lg:col-span-2">
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-2.5">
+                Value by {boqByTrade ? 'Trade' : 'Scope'}
+              </div>
+              <div className="space-y-3">
+                {boqBreakdown.map((b, i) => {
+                  const pct = boqTotal > 0 ? Math.round(b.value / boqTotal * 100) : 0
+                  const color = BOQ_PALETTE[i % BOQ_PALETTE.length]
+                  return (
+                    <div key={b.label}>
+                      <div className="flex justify-between text-[12px] mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <span className="font-semibold text-black dark:text-white truncate">{b.label}</span>
+                        </div>
+                        <span className="text-[#6B7280] dark:text-gray-400 whitespace-nowrap ml-2">
+                          {formatCurrency(b.value, project.currency)} · {pct}%
+                        </span>
+                      </div>
+                      <Bar pct={pct} color={color} height={8} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

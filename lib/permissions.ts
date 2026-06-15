@@ -57,7 +57,7 @@ export type EditablePage = (typeof EDITABLE_PAGES)[number]
 
 /** All pages in display order. */
 export const ALL_PAGES: (keyof PagePermissions)[] = [
-  'overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow', 'boq', 'map',
+  'overview', 'zones', 'boq', 'segments', 'progress', 'permits', 'cash_flow', 'map',
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -227,6 +227,15 @@ function Sidebar({
               />
             )}
 
+            {(isAdmin || (pagePerm && (pagePerm.boq ?? 'none') !== 'none')) && (
+              <NavItem
+                href={`/projects/${projectId}/boq`}
+                icon={Icon.Boq}
+                label="BOQ"
+                active={is(`/projects/${projectId}/boq`)}
+              />
+            )}
+
             {(isAdmin || (pagePerm && pagePerm.segments !== 'none')) && (
               <NavItem
                 href={`/projects/${projectId}/segments`}
@@ -260,15 +269,6 @@ function Sidebar({
                 icon={Icon.CashFlow}
                 label="Cash Flow"
                 active={is(`/projects/${projectId}/cashflow`)}
-              />
-            )}
-
-            {(isAdmin || (pagePerm && (pagePerm.boq ?? 'none') !== 'none')) && (
-              <NavItem
-                href={`/projects/${projectId}/boq`}
-                icon={Icon.Boq}
-                label="BOQ"
-                active={is(`/projects/${projectId}/boq`)}
               />
             )}
 
