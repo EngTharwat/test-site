@@ -7,6 +7,29 @@ import { FieldValue } from 'firebase-admin/firestore'
 
 type Params = { params: Promise<{ projectId: string }> }
 
+// Normalise an incoming lines array into stored InvoiceLine objects.
+function sanitizeLines(raw: any): { lines: any[]; total: number } {
+  const lines = Array.isArray(raw) ? raw : []
+  const out = lines
+    .map((l: any) => {
+      const rate = Number(l.rate) || 0
+      const qty  = Number(l.qty)  || 0
+      return {
+        boqId:       String(l.boqId ?? ''),
+        code:        String(l.code ?? ''),
+        description: String(l.description ?? ''),
+        scope:       String(l.scope ?? ''),
+        area:        String(l.area ?? ''),
+        building:    String(l.building ?? ''),
+        rate, qty,
+        amount:      rate * qty,
+      }
+    })
+    .filter(l => l.qty !== 0)   // only bill items with a quantity
+  const total = out.reduce((s, l) => s + l.amount, 0)
+  return { lines: out, total }
+}
+
 export async function GET(request: NextRequest, { params }: Params) {
   try {
     const user = await verifyAuth(request)
@@ -18,19 +41,23 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
-      // BOQ items are also the basis for Invoices.
-      if ((pagePerm.boq ?? 'none') === 'none' && (pagePerm.invoices ?? 'none') === 'none') {
+      if ((pagePerm.invoices ?? 'none') === 'none') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
     const snap = await adminDb
       .collection('projects').doc(projectId)
-      .collection('boq').get()
+      .collection('invoices').get()
 
     const items = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a: any, b: any) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
+      .sort((a: any, b: any) => {
+        // newest date first, then newest created
+        const da = String(a.date ?? ''), db = String(b.date ?? '')
+        if (da !== db) return db.localeCompare(da)
+        return (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+      })
 
     return Response.json(items)
   } catch (err: any) {
@@ -49,44 +76,31 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
-      if (pagePerm.boq !== 'edit') {
-        return Response.json({ error: 'Forbidden — cannot create BOQ items' }, { status: 403 })
+      if (pagePerm.invoices !== 'edit') {
+        return Response.json({ error: 'Forbidden — cannot create invoices' }, { status: 403 })
       }
     }
 
-    const body = await request.json()
-    const scope       = String(body.scope ?? '').trim()
-    const code        = String(body.code ?? '').trim()
-    const description = String(body.description ?? '').trim()
-    const rate        = Number(body.rate)
-    const qty         = Number(body.qty)
+    const body   = await request.json()
+    const number = String(body.number ?? '').trim()
+    const date   = String(body.date ?? '').trim()
 
-    // Mandatory: scope, ID (code), description, rate, qty
-    if (!scope)       return Response.json({ error: 'Scope is required' }, { status: 400 })
-    if (!code)        return Response.json({ error: 'ID is required' }, { status: 400 })
-    if (!description) return Response.json({ error: 'Description is required' }, { status: 400 })
-    if (!Number.isFinite(rate)) return Response.json({ error: 'Rate is required' }, { status: 400 })
-    if (!Number.isFinite(qty))  return Response.json({ error: 'Qty is required' }, { status: 400 })
+    if (!number) return Response.json({ error: 'Invoice No. is required' }, { status: 400 })
+    if (!date)   return Response.json({ error: 'Date is required' }, { status: 400 })
+
+    const { lines, total } = sanitizeLines(body.lines)
 
     const data = {
-      projectId,
-      scope,
-      area:        String(body.area ?? '').trim(),
-      building:    String(body.building ?? '').trim(),
-      trade:       String(body.trade ?? '').trim(),
-      activity:    String(body.activity ?? '').trim(),
-      code,
-      description,
-      rate,
-      qty,
-      totalPrice:  rate * qty,
-      createdAt:   FieldValue.serverTimestamp(),
-      updatedAt:   FieldValue.serverTimestamp(),
+      projectId, number, date,
+      notes: String(body.notes ?? '').trim(),
+      lines, total,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }
 
     const ref = await adminDb
       .collection('projects').doc(projectId)
-      .collection('boq').add(data)
+      .collection('invoices').add(data)
 
     const doc = await ref.get()
     return Response.json({ id: ref.id, ...doc.data() }, { status: 201 })

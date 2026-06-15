@@ -19,7 +19,8 @@ export async function GET(request: NextRequest, { params }: Params) {
     if (!access.isAdmin) {
       const pagePerm = getProjectPagePermissions(access.memberPermissions!, projectId)
       // The project doc (currency, type, map style…) is needed by several views.
-      if (pagePerm.overview === 'none' && (pagePerm.boq ?? 'none') === 'none') {
+      if (pagePerm.overview === 'none' && (pagePerm.boq ?? 'none') === 'none'
+          && (pagePerm.invoices ?? 'none') === 'none') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }

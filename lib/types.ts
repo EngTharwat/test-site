@@ -135,6 +135,33 @@ export interface BoqItem {
   updatedAt?:  FirestoreTimestamp
 }
 
+// ── Invoice (interim / payment certificate against the BOQ) ────────────────────
+/** One BOQ item billed on an invoice. Snapshots the BOQ values so the invoice
+ *  stays stable even if the BOQ is edited afterwards. */
+export interface InvoiceLine {
+  boqId:       string   // reference to the BoqItem
+  code:        string   // snapshot of the BOQ "ID"
+  description: string
+  scope:       string
+  area?:       string
+  building?:   string
+  rate:        number   // snapshot of the BOQ rate
+  qty:         number   // quantity billed on THIS invoice
+  amount:      number   // rate × qty
+}
+
+export interface Invoice {
+  id:         string
+  projectId:  string
+  number:     string    // invoice No.
+  date:       string    // 'YYYY-MM-DD'
+  notes?:     string
+  lines:      InvoiceLine[]
+  total:      number     // sum of line amounts
+  createdAt?: FirestoreTimestamp
+  updatedAt?: FirestoreTimestamp
+}
+
 // ── Zone ─────────────────────────────────────────────────────────────────────
 export interface Zone {
   id:        string

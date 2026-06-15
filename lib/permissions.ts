@@ -14,6 +14,7 @@ export interface PagePermissions {
   permits:   PageAccess
   cash_flow: PageAccess
   boq:       PageAccess
+  invoices:  PageAccess
   map:       MapAccess
 }
 
@@ -36,7 +37,7 @@ export interface MemberPermissions {
 
 export const DEFAULT_PAGE_PERMISSIONS: PagePermissions = {
   overview: 'none', zones: 'none', segments: 'none',
-  progress: 'none', permits: 'none', cash_flow: 'none', boq: 'none', map: 'none',
+  progress: 'none', permits: 'none', cash_flow: 'none', boq: 'none', invoices: 'none', map: 'none',
 }
 
 /** Human-readable label for each page. */
@@ -48,16 +49,17 @@ export const PAGE_LABELS: Record<keyof PagePermissions, string> = {
   permits:   'Permits',
   cash_flow: 'Cash Flow',
   boq:       'BOQ',
+  invoices:  'Invoices',
   map:       'Map / GIS',
 }
 
 /** Pages that support the 'edit' access level (map is view-only). */
-export const EDITABLE_PAGES = ['overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow', 'boq'] as const
+export const EDITABLE_PAGES = ['overview', 'zones', 'segments', 'progress', 'permits', 'cash_flow', 'boq', 'invoices'] as const
 export type EditablePage = (typeof EDITABLE_PAGES)[number]
 
 /** All pages in display order. */
 export const ALL_PAGES: (keyof PagePermissions)[] = [
-  'overview', 'zones', 'boq', 'segments', 'progress', 'permits', 'cash_flow', 'map',
+  'overview', 'zones', 'boq', 'invoices', 'segments', 'progress', 'permits', 'cash_flow', 'map',
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

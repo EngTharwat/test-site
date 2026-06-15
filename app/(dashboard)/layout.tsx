@@ -80,6 +80,12 @@ const Icon = {
       <line x1="16" y1="11" x2="16" y2="11"/><line x1="16" y1="15" x2="16" y2="15"/>
     </svg>
   ),
+  Invoices: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 2h14a1 1 0 0 1 1 1v18l-3-2-3 2-3-2-3 2-3-2V3a1 1 0 0 1 1-1z"/>
+      <line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/>
+    </svg>
+  ),
   Team: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -233,6 +239,15 @@ function Sidebar({
                 icon={Icon.Boq}
                 label="BOQ"
                 active={is(`/projects/${projectId}/boq`)}
+              />
+            )}
+
+            {(isAdmin || (pagePerm && (pagePerm.invoices ?? 'none') !== 'none')) && (
+              <NavItem
+                href={`/projects/${projectId}/invoices`}
+                icon={Icon.Invoices}
+                label="Invoices"
+                active={is(`/projects/${projectId}/invoices`)}
               />
             )}
 
