@@ -20,6 +20,8 @@ interface BulkInvoice {
   lines:  InvoiceLine[]
   total:  number
   unknownCodes: string[]   // codes in the file that don't match any BOQ item
+  isUpdate:   boolean      // true when an invoice with this number already exists
+  existingId?: string      // the existing invoice's id (for update)
   error?: string
 }
 
@@ -208,6 +210,8 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
     e.target.value = ''
     const XLSX = await import('xlsx')
     const byCode = new Map(boq.map(it => [it.code.toLowerCase(), it]))
+    // Existing invoices keyed by number → re-importing the same No. updates it.
+    const byNumber = new Map(invoices.map(iv => [iv.number.trim().toLowerCase(), iv]))
 
     const reader = new FileReader()
     reader.onload = (ev) => {
@@ -255,8 +259,9 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
           })
         })
         const total = lines.reduce((s, l) => s + l.amount, 0)
+        const existing = byNumber.get(number.trim().toLowerCase())
         const error = !g.date ? 'Missing date' : lines.length === 0 ? 'No valid lines' : undefined
-        return { number, date: g.date, lines, total, unknownCodes, error }
+        return { number, date: g.date, lines, total, unknownCodes, isUpdate: !!existing, existingId: existing?.id, error }
       })
 
       setBulkInvoices(drafts); setBulkSkipped(skipped); setShowBulk(true)
@@ -272,10 +277,17 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
     let ok = 0, fail = 0
     for (const b of valid) {
       try {
-        const created = await api.post(`/api/projects/${projectId}/invoices`, {
-          number: b.number, date: b.date, notes: '', lines: b.lines,
-        })
-        setInvoices(prev => [created, ...prev])
+        if (b.isUpdate && b.existingId) {
+          const updated = await api.patch(`/api/projects/${projectId}/invoices/${b.existingId}`, {
+            number: b.number, date: b.date, lines: b.lines,
+          })
+          setInvoices(prev => prev.map(iv => iv.id === b.existingId ? updated : iv))
+        } else {
+          const created = await api.post(`/api/projects/${projectId}/invoices`, {
+            number: b.number, date: b.date, notes: '', lines: b.lines,
+          })
+          setInvoices(prev => [created, ...prev])
+        }
         ok++
       } catch { fail++ }
       setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
@@ -328,7 +340,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
               <div>
                 <h2 className="text-[15px] font-bold text-black dark:text-white">Bulk Upload Preview</h2>
                 <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-0.5">
-                  {validBulkCount} invoice{validBulkCount !== 1 ? 's' : ''} ready · {bulkInvoices.length - validBulkCount} with errors
+                  {bulkInvoices.filter(b => !b.error && !b.isUpdate).length} add · {bulkInvoices.filter(b => !b.error && b.isUpdate).length} update · {bulkInvoices.length - validBulkCount} error
                   {bulkSkipped > 0 && ` · ${bulkSkipped} rows skipped (no Invoice No.)`}
                 </p>
               </div>
@@ -339,8 +351,8 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
               <table className="w-full text-[12px]">
                 <thead className="sticky top-0 bg-[#F3F4F6] dark:bg-gray-800">
                   <tr>
-                    {['Invoice No.','Date','Items','Total','Status'].map((h, i) => (
-                      <th key={h} className={`px-3 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i === 3 ? 'text-right' : 'text-left'}`}>{h}</th>
+                    {['Invoice No.','Action','Date','Items','Total','Status'].map((h, i) => (
+                      <th key={h} className={`px-3 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i === 4 ? 'text-right' : 'text-left'}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -348,6 +360,11 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
                   {bulkInvoices.map((b, i) => (
                     <tr key={`${b.number}-${i}`} className={b.error ? 'bg-red-50 dark:bg-red-950/20' : ''}>
                       <td className="px-3 py-2 font-semibold text-black dark:text-white">{b.number}</td>
+                      <td className="px-3 py-2">
+                        {b.isUpdate
+                          ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Update</span>
+                          : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">Add</span>}
+                      </td>
                       <td className="px-3 py-2 text-[#374151] dark:text-gray-300">{b.date || '—'}</td>
                       <td className="px-3 py-2 text-[#374151] dark:text-gray-300">{b.lines.length}</td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap">{money(b.total)}</td>
@@ -366,7 +383,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
               <button onClick={confirmBulkUpload} disabled={bulkSaving || validBulkCount === 0}
                 className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
-                {bulkSaving ? `Saving… (${validBulkCount})` : `Create ${validBulkCount} Invoice${validBulkCount !== 1 ? 's' : ''}`}
+                {bulkSaving ? `Saving… (${validBulkCount})` : `Save ${validBulkCount} Invoice${validBulkCount !== 1 ? 's' : ''}`}
               </button>
               <button type="button" onClick={() => { setShowBulk(false); setBulkInvoices([]) }}
                 className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
