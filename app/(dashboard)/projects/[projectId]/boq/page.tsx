@@ -32,6 +32,53 @@ const emptyForm = {
 const BOQ_HEADERS = ['ID','Scope','Area','Building','Trade','Activity','Description','Rate','Qty']
 const BOQ_COLW = [{wch:16},{wch:20},{wch:20},{wch:16},{wch:14},{wch:18},{wch:40},{wch:12},{wch:10}]
 
+// ── Grouping tree: Scope → Area → Building (each level only when present) ───────
+interface BoqNode {
+  key:   string        // unique path, e.g. "Pump Station|||Shaharin|||Pump House"
+  level: number        // 0 = scope, 1 = area, 2 = building
+  label: string
+  total: number
+  count: number
+  ids:   string[]      // every item id under this node (for select-all)
+  children: BoqNode[]  // sub-groups
+  items: BoqItem[]     // items that belong directly here (no deeper grouping)
+}
+
+const sortByCode = (items: BoqItem[]) =>
+  [...items].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true }))
+
+function buildBoqNode(label: string, level: number, key: string, items: BoqItem[]): BoqNode {
+  const nextLevel = level + 1
+  // Next grouping key: level 1 → Area, level 2 → Building, beyond → none
+  const keyFn =
+    nextLevel === 1 ? (it: BoqItem) => (it.area || '').trim()
+  : nextLevel === 2 ? (it: BoqItem) => (it.building || '').trim()
+  : null
+
+  let children: BoqNode[] = []
+  let direct = items
+  if (keyFn) {
+    direct = items.filter(it => !keyFn(it))                 // no value at this level → stays here
+    const map = new Map<string, BoqItem[]>()
+    items.filter(it => keyFn(it)).forEach(it => {
+      const k = keyFn(it)
+      ;(map.get(k) ?? map.set(k, []).get(k)!).push(it)
+    })
+    children = [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+      .map(([lbl, sub]) => buildBoqNode(lbl, nextLevel, `${key}|||${lbl}`, sub))
+  }
+
+  return {
+    key, level, label,
+    total: items.reduce((s, x) => s + (x.totalPrice || 0), 0),
+    count: items.length,
+    ids:   items.map(i => i.id),
+    children,
+    items: sortByCode(direct),
+  }
+}
+
 export default function BoqPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
   const router = useRouter()
@@ -115,8 +162,8 @@ export default function BoqPage({ params }: { params: Promise<{ projectId: strin
   const grandTotal = displayed.reduce((s, it) => s + (it.totalPrice || 0), 0)
   const uniqueTrades = [...new Set(items.map(i => i.trade).filter(Boolean))].sort()
 
-  // ── Group by scope ──────────────────────────────────────────────────────────
-  const scopeGroups = (() => {
+  // ── Group: Scope → Area → Building (deeper levels only when present) ─────────
+  const boqTree = (() => {
     const map = new Map<string, BoqItem[]>()
     displayed.forEach(it => {
       const k = it.scope || '—'
@@ -124,11 +171,7 @@ export default function BoqPage({ params }: { params: Promise<{ projectId: strin
     })
     return [...map.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
-      .map(([scope, list]) => ({
-        scope,
-        list: [...list].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true })),
-        total: list.reduce((s, x) => s + (x.totalPrice || 0), 0),
-      }))
+      .map(([scope, list]) => buildBoqNode(scope, 0, scope, list))
   })()
 
   // ── Bulk upload ──────────────────────────────────────────────────────────────
@@ -365,6 +408,81 @@ export default function BoqPage({ params }: { params: Promise<{ projectId: strin
   const validBulkCount = bulkRows.filter(r => !r.error).length
   const hasFilter = !!(fScope || fArea || fTrade || fSearch)
   const livePreviewTotal = (Number(form.rate) || 0) * (Number(form.qty) || 0)
+
+  // ── Recursive table rendering (group headers + item rows) ───────────────────
+  function renderItemRow(it: BoqItem, depth: number) {
+    return (
+      <tr key={it.id} className={`transition-colors ${selected.has(it.id) ? 'bg-[#2563FF]/5 dark:bg-blue-900/20' : 'hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50'}`}>
+        {canEdit && (
+          <td className="px-3 py-3 w-8">
+            <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggleSel(it.id)}
+              className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
+          </td>
+        )}
+        <td className="py-3 font-semibold text-black dark:text-white whitespace-nowrap" style={{ paddingLeft: 12 + depth * 18, paddingRight: 12 }}>{it.code}</td>
+        <td className="px-3 py-3 text-[#374151] dark:text-gray-300 max-w-[280px]">{it.description}</td>
+        <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{it.area || '—'}</td>
+        <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{it.building || '—'}</td>
+        <td className="px-3 py-3">
+          {it.trade
+            ? <span className="bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">{it.trade}</span>
+            : <span className="text-[#9CA3AF]">—</span>}
+        </td>
+        <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{it.activity || '—'}</td>
+        <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300 tabular-nums">{fmtN(it.qty, 2)}</td>
+        <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300 tabular-nums">{fmtN(it.rate, 2)}</td>
+        <td className="px-3 py-3 text-right font-semibold text-black dark:text-white tabular-nums whitespace-nowrap">{money(it.totalPrice || 0)}</td>
+        <td className="px-3 py-3">
+          <div className="flex gap-2 justify-end whitespace-nowrap">
+            {canEdit && (
+              <>
+                <button onClick={() => openEdit(it)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white">Edit</button>
+                <button onClick={() => deleteItem(it.id)} className="text-[11px] text-red-400 hover:text-red-600">Del</button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    )
+  }
+
+  function renderNode(node: BoqNode): React.ReactElement[] {
+    const rows: React.ReactElement[] = []
+    const isCollapsed = collapsed.has(node.key)
+    const allSel = node.ids.length > 0 && node.ids.every(id => selected.has(id))
+    rows.push(
+      <tr key={`g-${node.key}`} className="bg-[#F9FAFB] dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 select-none">
+        {canEdit && (
+          <td className="px-3 py-2.5 w-8">
+            <input type="checkbox" checked={allSel} onChange={() => toggleScopeSel(node.ids)} title="Select group"
+              className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
+          </td>
+        )}
+        <td colSpan={9} className="py-2.5 pr-3 cursor-pointer" onClick={() => toggleCollapse(node.key)}>
+          <div className="flex items-center justify-between" style={{ paddingLeft: 12 + node.level * 18 }}>
+            <span className={`flex items-center gap-2 ${node.level === 0 ? 'text-[12px] font-bold' : 'text-[11px] font-semibold'} text-black dark:text-white`}>
+              <span className="inline-block w-3 text-[#6B7280] dark:text-gray-400">{isCollapsed ? '▸' : '▾'}</span>
+              {node.level > 0 && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF] dark:text-gray-500">
+                  {node.level === 1 ? 'Area' : 'Building'}
+                </span>
+              )}
+              {node.label}
+              <span className="text-[10px] font-normal text-[#6B7280] dark:text-gray-400">({node.count})</span>
+            </span>
+            <span className="text-[11px] font-semibold text-[#374151] dark:text-gray-300 whitespace-nowrap">{money(node.total)}</span>
+          </div>
+        </td>
+      </tr>
+    )
+    if (!isCollapsed) {
+      // Items that belong directly to this node (no deeper grouping) come first,
+      // then the nested sub-groups.
+      node.items.forEach(it => rows.push(renderItemRow(it, node.level + 1)))
+      node.children.forEach(child => rows.push(...renderNode(child)))
+    }
+    return rows
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -607,70 +725,7 @@ export default function BoqPage({ params }: { params: Promise<{ projectId: strin
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {scopeGroups.map(group => {
-                const isCollapsed = collapsed.has(group.scope)
-                const ids = group.list.map(i => i.id)
-                return (
-                  <>
-                    {/* Scope header */}
-                    <tr key={`scope-${group.scope}`} className="bg-[#F9FAFB] dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 select-none">
-                      {canEdit && (
-                        <td className="px-3 py-2.5 w-8">
-                          <input type="checkbox"
-                            checked={ids.length > 0 && ids.every(id => selected.has(id))}
-                            onChange={() => toggleScopeSel(ids)} title="Select scope"
-                            className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
-                        </td>
-                      )}
-                      <td colSpan={9} className="px-3 py-2.5 cursor-pointer" onClick={() => toggleCollapse(group.scope)}>
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2 text-[12px] font-bold text-black dark:text-white">
-                            <span className="inline-block w-3 text-[#6B7280] dark:text-gray-400">{isCollapsed ? '▸' : '▾'}</span>
-                            {group.scope}
-                            <span className="text-[10px] font-normal text-[#6B7280] dark:text-gray-400">({group.list.length})</span>
-                          </span>
-                          <span className="text-[11px] font-semibold text-[#374151] dark:text-gray-300">{money(group.total)}</span>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Item rows */}
-                    {!isCollapsed && group.list.map(it => (
-                      <tr key={it.id} className={`transition-colors ${selected.has(it.id) ? 'bg-[#2563FF]/5 dark:bg-blue-900/20' : 'hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50'}`}>
-                        {canEdit && (
-                          <td className="px-3 py-3 w-8">
-                            <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggleSel(it.id)}
-                              className="w-4 h-4 rounded accent-[#2563FF] cursor-pointer" />
-                          </td>
-                        )}
-                        <td className="px-3 py-3 font-semibold text-black dark:text-white whitespace-nowrap">{it.code}</td>
-                        <td className="px-3 py-3 text-[#374151] dark:text-gray-300 max-w-[280px]">{it.description}</td>
-                        <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{it.area || '—'}</td>
-                        <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{it.building || '—'}</td>
-                        <td className="px-3 py-3">
-                          {it.trade
-                            ? <span className="bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">{it.trade}</span>
-                            : <span className="text-[#9CA3AF]">—</span>}
-                        </td>
-                        <td className="px-3 py-3 text-[#374151] dark:text-gray-300">{it.activity || '—'}</td>
-                        <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300 tabular-nums">{fmtN(it.qty, 2)}</td>
-                        <td className="px-3 py-3 text-right text-[#374151] dark:text-gray-300 tabular-nums">{fmtN(it.rate, 2)}</td>
-                        <td className="px-3 py-3 text-right font-semibold text-black dark:text-white tabular-nums whitespace-nowrap">{money(it.totalPrice || 0)}</td>
-                        <td className="px-3 py-3">
-                          <div className="flex gap-2 justify-end whitespace-nowrap">
-                            {canEdit && (
-                              <>
-                                <button onClick={() => openEdit(it)} className="text-[11px] text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white">Edit</button>
-                                <button onClick={() => deleteItem(it.id)} className="text-[11px] text-red-400 hover:text-red-600">Del</button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </>
-                )
-              })}
+              {boqTree.flatMap(node => renderNode(node))}
             </tbody>
             <tfoot>
               <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
