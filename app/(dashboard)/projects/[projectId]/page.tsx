@@ -558,6 +558,10 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const invCount     = invoices.length
   // Invoiced as a share of the contract value (billing progress)
   const invVsContractPct = project.contractValue > 0 ? Math.round(invTotal / project.contractValue * 100) : null
+  // Histogram: invoices in ascending No. order, scaled to the largest invoice
+  const invSorted = [...invoices].sort((a, b) =>
+    (a.number || '').localeCompare(b.number || '', undefined, { numeric: true, sensitivity: 'base' }))
+  const invMax = Math.max(1, ...invSorted.map(iv => iv.total || 0))
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -776,7 +780,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
           {/* Invoiced vs contract progress */}
           {invVsContractPct !== null && (
-            <div>
+            <div className="mb-5">
               <div className="flex justify-between text-[11px] text-[#6B7280] dark:text-gray-400 mb-1.5">
                 <span>Billed to date</span>
                 <span>{invVsContractPct}% of contract</span>
@@ -784,6 +788,29 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               <Bar pct={invVsContractPct} color="#2563FF" height={8} />
             </div>
           )}
+
+          {/* Columns histogram — one bar per invoice (paid green / pending amber) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Invoice Amounts</div>
+              <div className="flex items-center gap-3 text-[10px] text-[#6B7280] dark:text-gray-400">
+                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#22c55e' }} /> Paid</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: '#f59e0b' }} /> Pending</span>
+              </div>
+            </div>
+            <div className="flex items-end gap-1.5" style={{ height: 120 }}>
+              {invSorted.map(iv => (
+                <div key={iv.id} className="flex-1 rounded-t min-w-[3px] transition-all hover:opacity-80"
+                  title={`${iv.number} · ${iv.date || ''} · ${formatCurrency(iv.total || 0, project.currency)}${iv.paid ? ' · paid' : ' · pending'}`}
+                  style={{ height: `${Math.max(2, Math.round((iv.total || 0) / invMax * 100))}%`, background: iv.paid ? '#22c55e' : '#f59e0b' }} />
+              ))}
+            </div>
+            <div className="flex gap-1.5 mt-1">
+              {invSorted.map(iv => (
+                <span key={iv.id} className="flex-1 min-w-[3px] text-[8px] text-center text-[#9CA3AF] dark:text-gray-500 truncate">{iv.number}</span>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

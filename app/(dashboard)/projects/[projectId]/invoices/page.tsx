@@ -202,6 +202,9 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
   const grandInvoiced = invoices.reduce((s, iv) => s + (iv.total || 0), 0)
   const paidTotal     = invoices.filter(iv => iv.paid).reduce((s, iv) => s + (iv.total || 0), 0)
   const pendingTotal  = grandInvoiced - paidTotal
+  // Display ascending by invoice No. (numeric-aware: INV-1, INV-2, … INV-10)
+  const displayInvoices = [...invoices].sort((a, b) =>
+    (a.number || '').localeCompare(b.number || '', undefined, { numeric: true, sensitivity: 'base' }))
 
   // ── Bulk upload (many invoices in one Excel) ─────────────────────────────────
   const BULK_HEADERS = ['Invoice No.', 'Date', 'ID', 'Description', 'Qty', 'Paid', 'Payment Date']
@@ -575,7 +578,7 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {invoices.map(inv => {
+              {displayInvoices.map(inv => {
                 const isOpen = expanded.has(inv.id)
                 return (
                   <>
