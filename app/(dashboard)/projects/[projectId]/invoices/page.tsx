@@ -1,15 +1,42 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { getProjectPagePermissions } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import { Invoice, InvoiceLine, BoqItem, Project, formatCurrency, fmtN } from '@/lib/types'
+import { UploadProgressModal, type UploadState, initialUpload } from '@/lib/upload-progress'
 
 const inputCls = 'w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/5 focus:border-black dark:focus:border-gray-500 transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
+
+// A draft invoice parsed from an uploaded Excel file (long format: one row per
+// invoice-line). Multiple invoices are grouped by their Invoice No.
+interface BulkInvoice {
+  number: string
+  date:   string
+  lines:  InvoiceLine[]
+  total:  number
+  unknownCodes: string[]   // codes in the file that don't match any BOQ item
+  error?: string
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+// Accept either a typed string (YYYY-MM-DD / parseable) or an Excel serial number.
+function toISODate(v: any): string {
+  if (v == null || v === '') return ''
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000))   // Excel serial → UTC date
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`
+  }
+  const s = String(v).trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const d = new Date(s)
+  if (!isNaN(d.getTime())) return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  return s
+}
 
 export default function InvoicesPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params)
@@ -40,6 +67,14 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
   // Expanded invoice rows (detail view)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
+  // Bulk upload (multiple invoices at once)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [bulkInvoices, setBulkInvoices] = useState<BulkInvoice[]>([])
+  const [bulkSkipped,  setBulkSkipped]  = useState(0)
+  const [showBulk,     setShowBulk]     = useState(false)
+  const [bulkSaving,   setBulkSaving]   = useState(false)
+  const [upload,       setUpload]       = useState<UploadState>(initialUpload)
+
   const fetchAll = useCallback(async () => {
     try {
       const [invs, items, proj] = await Promise.all([
@@ -60,15 +95,17 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
   const currency = project?.currency ?? 'SAR'
   const money = (n: number) => formatCurrency(n, currency as any)
 
-  // ── Editor grouped by scope ─────────────────────────────────────────────────
-  const sortedBoq = [...boq].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true }))
+  // ── Editor grouped by scope — preserves the order items were entered in the
+  //    BOQ (the API returns them in creation order; we don't re-sort). ──────────
   const filteredBoq = boqSearch
-    ? sortedBoq.filter(it => `${it.code} ${it.description} ${it.scope} ${it.area ?? ''} ${it.building ?? ''}`.toLowerCase().includes(boqSearch.toLowerCase()))
-    : sortedBoq
+    ? boq.filter(it => `${it.code} ${it.description} ${it.scope} ${it.area ?? ''} ${it.building ?? ''}`.toLowerCase().includes(boqSearch.toLowerCase()))
+    : boq
   const scopeGroups = (() => {
     const map = new Map<string, BoqItem[]>()
+    // Map preserves first-seen key order, so scopes appear in BOQ order and the
+    // items within each scope keep their original BOQ sequence.
     filteredBoq.forEach(it => { const k = it.scope || '—'; (map.get(k) ?? map.set(k, []).get(k)!).push(it) })
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+    return [...map.entries()]
   })()
   const toggleCollapse = (s: string) => setCollapsed(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n })
 
@@ -141,8 +178,118 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
 
   const grandInvoiced = invoices.reduce((s, iv) => s + (iv.total || 0), 0)
 
+  // ── Bulk upload (many invoices in one Excel) ─────────────────────────────────
+  const BULK_HEADERS = ['Invoice No.', 'Date', 'ID', 'Description', 'Qty']
+
+  async function downloadBulkTemplate() {
+    const XLSX = await import('xlsx')
+    // Pre-list every existing BOQ item (in BOQ order) under one example invoice
+    // so the user only fills the Qty column and can duplicate the block per invoice.
+    const example = todayISO()
+    const rows = boq.length
+      ? boq.map(it => ['INV-001', example, it.code, it.description, ''])
+      : [['INV-001', example, 'C-101', 'Example item', '10']]
+    const ws = XLSX.utils.aoa_to_sheet([BULK_HEADERS, ...rows])
+    ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 44 }, { wch: 12 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Invoices')
+    // Reference sheet: existing BOQ items
+    const refHead = ['ID', 'Description', 'Scope', 'Area', 'Building', 'Rate']
+    const refRows = boq.map(it => [it.code, it.description, it.scope, it.area ?? '', it.building ?? '', it.rate ?? 0])
+    const refWs = XLSX.utils.aoa_to_sheet([refHead, ...refRows])
+    refWs['!cols'] = [{ wch: 16 }, { wch: 44 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 12 }]
+    XLSX.utils.book_append_sheet(wb, refWs, 'BOQ Items')
+    XLSX.writeFile(wb, 'pmboards-invoices-template.xlsx')
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const XLSX = await import('xlsx')
+    const byCode = new Map(boq.map(it => [it.code.toLowerCase(), it]))
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const wb   = XLSX.read(ev.target!.result, { type: 'binary' })
+      const ws   = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][]
+      if (rows.length < 2) { setError('File has no data rows'); return }
+
+      const [headerRow, ...dataRows] = rows
+      const find = (re: RegExp) => headerRow.findIndex((_: any, i: number) => re.test(String(headerRow[i])))
+      const col = {
+        number: find(/invoice|\bno\.?\b/i),
+        date:   find(/date/i),
+        code:   find(/\bid\b|code/i),
+        qty:    find(/qty|quan/i),
+      }
+      const cell = (row: any[], i: number) => i >= 0 ? row[i] : ''
+
+      // Group rows by invoice number, preserving first-seen order.
+      const groups = new Map<string, { date: string; rows: { code: string; qty: number }[] }>()
+      let skipped = 0
+      dataRows.forEach(row => {
+        if (!row.some((c: any) => String(c).trim())) return
+        const number = String(cell(row, col.number) ?? '').trim()
+        if (!number) { skipped++; return }
+        const date = toISODate(cell(row, col.date))
+        const code = String(cell(row, col.code) ?? '').trim()
+        const qty  = parseFloat(String(cell(row, col.qty) ?? '')) || 0
+        const g = groups.get(number) ?? groups.set(number, { date: '', rows: [] }).get(number)!
+        if (date && !g.date) g.date = date
+        g.rows.push({ code, qty })
+      })
+
+      const drafts: BulkInvoice[] = [...groups.entries()].map(([number, g]) => {
+        const lines: InvoiceLine[] = []
+        const unknownCodes: string[] = []
+        g.rows.forEach(({ code, qty }) => {
+          if (!code || qty === 0) return
+          const it = byCode.get(code.toLowerCase())
+          if (!it) { unknownCodes.push(code); return }
+          lines.push({
+            boqId: it.id, code: it.code, description: it.description,
+            scope: it.scope, area: it.area ?? '', building: it.building ?? '',
+            rate: it.rate || 0, qty, amount: (it.rate || 0) * qty,
+          })
+        })
+        const total = lines.reduce((s, l) => s + l.amount, 0)
+        const error = !g.date ? 'Missing date' : lines.length === 0 ? 'No valid lines' : undefined
+        return { number, date: g.date, lines, total, unknownCodes, error }
+      })
+
+      setBulkInvoices(drafts); setBulkSkipped(skipped); setShowBulk(true)
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  async function confirmBulkUpload() {
+    const valid = bulkInvoices.filter(b => !b.error)
+    if (!valid.length) return
+    setBulkSaving(true); setShowBulk(false)
+    setUpload({ open: true, title: 'Uploading invoices', total: valid.length, done: 0, ok: 0, fail: 0, finished: false })
+    let ok = 0, fail = 0
+    for (const b of valid) {
+      try {
+        const created = await api.post(`/api/projects/${projectId}/invoices`, {
+          number: b.number, date: b.date, notes: '', lines: b.lines,
+        })
+        setInvoices(prev => [created, ...prev])
+        ok++
+      } catch { fail++ }
+      setUpload(u => ({ ...u, done: u.done + 1, ok, fail }))
+    }
+    setUpload(u => ({ ...u, finished: true }))
+    setBulkInvoices([]); setBulkSaving(false)
+  }
+
+  const validBulkCount = bulkInvoices.filter(b => !b.error).length
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
+
+      <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-6">
@@ -155,12 +302,80 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">Interim invoices billed against the BOQ</p>
         </div>
         {canEdit && !showForm && (
-          <button onClick={openNew}
-            className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
-            + New Invoice
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={downloadBulkTemplate}
+              className="border border-gray-200 dark:border-gray-700 text-[#374151] dark:text-gray-300 text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              ↓ Template
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              className="border border-[#2563FF] text-[#2563FF] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+              title="Import .xlsx — one row per invoice line (Invoice No., Date, BOQ ID, Qty). Multiple invoices in one file.">
+              ↑ Import
+            </button>
+            <button onClick={openNew}
+              className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 transition-colors">
+              + New Invoice
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Bulk upload preview */}
+      {showBulk && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-10 px-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-3xl mb-10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h2 className="text-[15px] font-bold text-black dark:text-white">Bulk Upload Preview</h2>
+                <p className="text-[12px] text-[#6B7280] dark:text-gray-400 mt-0.5">
+                  {validBulkCount} invoice{validBulkCount !== 1 ? 's' : ''} ready · {bulkInvoices.length - validBulkCount} with errors
+                  {bulkSkipped > 0 && ` · ${bulkSkipped} rows skipped (no Invoice No.)`}
+                </p>
+              </div>
+              <button onClick={() => { setShowBulk(false); setBulkInvoices([]) }}
+                className="text-[#6B7280] hover:text-black dark:hover:text-white text-xl">×</button>
+            </div>
+            <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
+              <table className="w-full text-[12px]">
+                <thead className="sticky top-0 bg-[#F3F4F6] dark:bg-gray-800">
+                  <tr>
+                    {['Invoice No.','Date','Items','Total','Status'].map((h, i) => (
+                      <th key={h} className={`px-3 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider ${i === 3 ? 'text-right' : 'text-left'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {bulkInvoices.map((b, i) => (
+                    <tr key={`${b.number}-${i}`} className={b.error ? 'bg-red-50 dark:bg-red-950/20' : ''}>
+                      <td className="px-3 py-2 font-semibold text-black dark:text-white">{b.number}</td>
+                      <td className="px-3 py-2 text-[#374151] dark:text-gray-300">{b.date || '—'}</td>
+                      <td className="px-3 py-2 text-[#374151] dark:text-gray-300">{b.lines.length}</td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap">{money(b.total)}</td>
+                      <td className="px-3 py-2">
+                        {b.error
+                          ? <span className="text-red-500 text-[10px]">{b.error}</span>
+                          : <span className="text-green-600 font-semibold text-[10px]">
+                              ✓ Ready{b.unknownCodes.length ? ` · ${b.unknownCodes.length} unknown ID skipped` : ''}
+                            </span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+              <button onClick={confirmBulkUpload} disabled={bulkSaving || validBulkCount === 0}
+                className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
+                {bulkSaving ? `Saving… (${validBulkCount})` : `Create ${validBulkCount} Invoice${validBulkCount !== 1 ? 's' : ''}`}
+              </button>
+              <button type="button" onClick={() => { setShowBulk(false); setBulkInvoices([]) }}
+                className="text-sm text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create / edit form */}
       {showForm && canEdit && (
@@ -365,6 +580,9 @@ export default function InvoicesPage({ params }: { params: Promise<{ projectId: 
           </table>
         </div>
       )}
+
+      {/* Animated upload progress */}
+      <UploadProgressModal state={upload} onClose={() => setUpload(initialUpload)} />
     </div>
   )
 }
