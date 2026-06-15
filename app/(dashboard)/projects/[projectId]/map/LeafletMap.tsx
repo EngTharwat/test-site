@@ -120,9 +120,20 @@ function FitBounds({ mapped, facilities, fitNonce }: { mapped: MappedSegment[]; 
     if (!lats.length) return
     const minLat = Math.min(...lats), maxLat = Math.max(...lats)
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
-    if (isFinite(minLat)) {
-      map.fitBounds([[minLat, minLng],[maxLat, maxLng]], { padding: [40, 40] })
+    if (!isFinite(minLat)) return
+
+    const doFit = () => {
+      // The map can be measured before its container reaches full size (it lives
+      // in a flex/grid cell, or is freshly remounted). Sync the size first so the
+      // computed zoom is correct, then fit.
+      map.invalidateSize()
+      map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [40, 40], maxZoom: 18 })
     }
+    doFit()
+    // Re-fit once more after layout settles (handles the initial 0-size case).
+    const raf = requestAnimationFrame(doFit)
+    const t   = setTimeout(doFit, 250)
+    return () => { cancelAnimationFrame(raf); clearTimeout(t) }
   }, [mapped, facilities, map, fitNonce])
   return null
 }
