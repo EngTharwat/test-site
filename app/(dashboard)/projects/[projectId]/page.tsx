@@ -568,13 +568,20 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   // ── BOQ stats ────────────────────────────────────────────────────────────────
   const boqTotal  = boq.reduce((s, it) => s + (it.totalPrice || 0), 0)
   const boqCount  = boq.length
-  // Break the BOQ value down by Trade; fall back to Scope when no trades are set.
-  const boqByTrade = boq.some(it => it.trade)
-  const boqGroupKey = (it: BoqItem) => (boqByTrade ? (it.trade || 'Other') : (it.scope || '—'))
+  // Break the BOQ value down by Scope — Area (area omitted when an item has none).
+  const boqGroupKey = (it: BoqItem) => {
+    const scope = it.scope || '—'
+    return it.area ? `${scope} — ${it.area}` : scope
+  }
   const boqBreakdown = (() => {
     const map = new Map<string, number>()
     boq.forEach(it => map.set(boqGroupKey(it), (map.get(boqGroupKey(it)) || 0) + (it.totalPrice || 0)))
-    return [...map.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
+    const all = [...map.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
+    // Keep the list readable when there are many scope/area combinations.
+    if (all.length <= 12) return all
+    const top  = all.slice(0, 11)
+    const rest = all.slice(11).reduce((s, x) => s + x.value, 0)
+    return [...top, { label: `Others (${all.length - 11})`, value: rest }]
   })()
   const BOQ_PALETTE = ['#2563FF','#7C3AED','#22c55e','#f97316','#ef4444','#eab308','#06b6d4','#0891b2','#6366f1']
   // BOQ value as a share of the contract value (when both are known)
@@ -764,7 +771,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             {/* Breakdown by trade (or scope) */}
             <div className="lg:col-span-2">
               <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-2.5">
-                Value by {boqByTrade ? 'Trade' : 'Scope'}
+                Value by Scope / Area
               </div>
               <div className="space-y-3">
                 {boqBreakdown.map((b, i) => {
