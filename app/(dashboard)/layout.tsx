@@ -326,10 +326,11 @@ function Sidebar({
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, profile, profileLoading, signOut } = useAuth()
+  const { user, loading, profile, profileLoading, profileError, refreshProfile, signOut } = useAuth()
   const router   = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
     if (!profile || profileLoading) return
@@ -356,6 +357,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleSignOut = async () => {
     await signOut()
     router.replace('/login')
+  }
+
+  // The backend couldn't load the account (e.g. Firestore quota/outage). Show a
+  // retry state rather than silently rendering a misleading "member" shell.
+  if (user && profileError && !profile && !profileLoading) {
+    const handleRetry = async () => {
+      setRetrying(true)
+      try { await refreshProfile() } finally { setRetrying(false) }
+    }
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#F3F4F6] dark:bg-[#1a202c] px-6">
+        <div className="max-w-md text-center bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 shadow-sm">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h1 className="text-lg font-bold text-black dark:text-white mb-2">Couldn’t load your account</h1>
+          <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-1">
+            We reached the sign-in service but couldn’t load your portfolio data right now.
+          </p>
+          <p className="text-[12px] text-[#9CA3AF] dark:text-gray-500 mb-6">
+            This is usually a temporary backend/quota issue — your projects and admin access are safe. Try again in a moment.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={handleRetry} disabled={retrying}
+              className="bg-black dark:bg-white text-white dark:text-black text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-[#0F1115] dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
+              {retrying ? 'Retrying…' : 'Retry'}
+            </button>
+            <button onClick={handleSignOut}
+              className="text-sm font-semibold text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -34,6 +34,10 @@ interface AuthContextValue {
   loading:        boolean
   profile:        UserProfile | null
   profileLoading: boolean
+  /** True when /api/me failed with a server/network error (e.g. the backend
+   *  couldn't reach Firestore). We deliberately do NOT downgrade the user to a
+   *  member in this case — the UI shows a retry state instead. */
+  profileError:   boolean
   getToken:       () => Promise<string | null>
   signIn:         (email: string, password: string) => Promise<void>
   signUp:         (email: string, password: string) => Promise<void>
@@ -50,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading,        setLoading]        = useState(true)
   const [profile,        setProfile]        = useState<UserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError,   setProfileError]   = useState(false)
 
   // Fetch /api/me to get portfolio + permissions info
   const fetchProfile = useCallback(async (u: User) => {
@@ -61,15 +66,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       if (res.ok) {
         setProfile(await res.json())
+        setProfileError(false)
+      } else if (res.status >= 500) {
+        // The backend couldn't load the account (e.g. Firestore quota/outage).
+        // Don't pretend the user is a member — surface a retryable error so we
+        // never mistake a transient outage for a lost admin / lost data.
+        setProfile(null)
+        setProfileError(true)
       } else {
+        // 4xx — a genuine auth/permission state, not an outage.
         setProfile({
           isAdmin: false, role: null, permissions: null,
           portfolioId: null, portfolioSlug: null, portfolioName: null,
           username: null, needsPortfolio: false,
         })
+        setProfileError(false)
       }
     } catch {
+      // Network failure — also transient, retryable.
       setProfile(null)
+      setProfileError(true)
     } finally {
       setProfileLoading(false)
     }
@@ -80,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u)
       setLoading(false)
       if (u) fetchProfile(u)
-      else   setProfile(null)
+      else { setProfile(null); setProfileError(false) }
     })
     return unsub
   }, [fetchProfile])
@@ -123,11 +139,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await firebaseSignOut(auth)
     setProfile(null)
+    setProfileError(false)
   }
 
   return (
     <AuthContext.Provider value={{
-      user, loading, profile, profileLoading,
+      user, loading, profile, profileLoading, profileError,
       getToken, signIn, signUp, signInMember, refreshProfile, signOut,
     }}>
       {children}
