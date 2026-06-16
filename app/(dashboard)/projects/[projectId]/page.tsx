@@ -466,24 +466,42 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const asphaltSegs = segments.filter(s => (s.surfaceType ?? ((s.asphaltThickness ?? 0) > 0 ? 'asphalt' : 'dirt')) === 'asphalt').length
   const dirtSegs    = totalSegs - asphaltSegs
 
-  // Activity completion (% of segments with that activity done)
+  // An activity doesn't apply to a segment when it's asphalt / base course with
+  // zero thickness (e.g. a dirt road) — those must NOT drag the % down.
+  const actApplies = (seg: Segment, key: string) =>
+    key === 'asphalt'    ? (seg.asphaltThickness    ?? 0) > 0
+  : key === 'basecourse' ? (seg.basecourseThickness ?? 0) > 0
+  : true
+  const segDone = (seg: Segment, key: string) => ((seg as any)[key]?.pct ?? 0) >= 100
+  // Length-weighted completion of one segment across only its applicable activities.
+  const segCompletion = (seg: Segment) => {
+    const ks = ACTIVITY_KEYS.filter(a => actApplies(seg, a.key))
+    if (!ks.length) return 0
+    return ks.reduce((s, a) => s + ((seg as any)[a.key]?.pct ?? 0), 0) / ks.length
+  }
+
+  // Activity completion measured by LINEAR METRES. Asphalt / base course only
+  // count the length where they actually apply.
   const actStats = ACTIVITY_KEYS.map(act => {
-    const done = segments.filter(s => ((s as any)[act.key]?.pct ?? 0) >= 100).length
-    return { ...act, done, pct: totalSegs > 0 ? Math.round((done / totalSegs) * 100) : 0 }
+    const applic    = segments.filter(s => actApplies(s, act.key))
+    const applicLen = applic.reduce((s, x) => s + (x.length || 0), 0)
+    const doneLen   = applic.filter(s => segDone(s, act.key)).reduce((s, x) => s + (x.length || 0), 0)
+    return { ...act, doneLen, applicLen, pct: applicLen > 0 ? Math.round(doneLen / applicLen * 100) : 0 }
   })
 
-  // Per-zone segment count and progress
+  // Per-area progress: length-weighted, excluding non-applicable activities.
   const zoneStats = zones.map(zone => {
     const zSegs    = segments.filter(s => s.zoneId === zone.id)
-    const avgPct   = zSegs.length ? Math.round(zSegs.reduce((s, seg) => s + (seg.overallPct || 0), 0) / zSegs.length) : 0
     const totalLen = zSegs.reduce((s, seg) => s + (seg.length || 0), 0)
-    return { ...zone, segCount: zSegs.length, avgPct, totalLen }
+    const execLen  = zSegs.reduce((s, seg) => s + (seg.length || 0) * segCompletion(seg) / 100, 0)
+    const pct      = totalLen > 0 ? Math.round(execLen / totalLen * 100) : 0
+    return { ...zone, totalLen, execLen, pct }
   })
 
-  // Group zones by scope/type — the same zone name can exist under several
-  // scopes (e.g. Gravity and Force Main), so each scope gets its own table.
+  // Group by scope. Only linear scopes that actually have length appear here —
+  // point facilities (pump/lift stations) have no segments, so they're excluded.
   const zonesByType: Record<string, typeof zoneStats> = {}
-  zoneStats.forEach(z => {
+  zoneStats.filter(z => z.totalLen > 0).forEach(z => {
     const t = z.type || 'Untyped'
     ;(zonesByType[t] ??= []).push(z)
   })
@@ -1171,8 +1189,8 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                       <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: act.color }} />
                       <span className="font-medium text-black dark:text-white">{act.label}</span>
                     </div>
-                    <span className="text-[#6B7280] dark:text-gray-400 text-[11px]">
-                      {act.done}/{totalSegs} · {act.pct}%
+                    <span className="text-[#6B7280] dark:text-gray-400 text-[11px] tabular-nums">
+                      {formatLength(act.doneLen)} / {formatLength(act.applicLen)} · {act.pct}%
                     </span>
                   </div>
                   <Bar pct={act.pct} color={act.color} />
@@ -1190,41 +1208,40 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
               className="text-[11px] text-[#2563FF] hover:underline">View all →</button>
           </div>
 
-          {zones.length === 0 ? (
+          {scopeKeys.length === 0 ? (
             <div className="px-6 py-8 text-center">
-              <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No areas yet</p>
+              <p className="text-sm text-[#6B7280] dark:text-gray-400 mb-3">No mapped length yet</p>
               <button onClick={() => router.push(`/projects/${projectId}/zones`)}
                 className="text-sm font-semibold text-black dark:text-white hover:underline">+ Add Area</button>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {scopeKeys.map(scope => {
-                const list   = zonesByType[scope]
-                const segSum = list.reduce((s, z) => s + z.segCount, 0)
-                const lenSum = list.reduce((s, z) => s + z.totalLen, 0)
-                const avg    = list.length
-                  ? Math.round(list.reduce((s, z) => s + z.avgPct, 0) / list.length) : 0
+                const list    = zonesByType[scope]
+                const lenSum  = list.reduce((s, z) => s + z.totalLen, 0)
+                const execSum = list.reduce((s, z) => s + z.execLen, 0)
+                const avg     = lenSum > 0 ? Math.round(execSum / lenSum * 100) : 0
                 return (
                   <div key={scope} className="px-6 py-4">
                     {/* Scope header */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[12px] font-bold text-black dark:text-white">{scope}</span>
-                      <span className="text-[10px] text-[#6B7280] dark:text-gray-400">
-                        {list.length} area{list.length !== 1 ? 's' : ''} · {segSum} segs · {formatLength(lenSum)} · {avg}%
+                      <span className="text-[10px] text-[#6B7280] dark:text-gray-400 tabular-nums">
+                        {list.length} area{list.length !== 1 ? 's' : ''} · {formatLength(lenSum)} · {avg}%
                       </span>
                     </div>
-                    {/* Per-zone rows for this scope */}
+                    {/* Per-area rows for this scope */}
                     <div className="space-y-2.5">
                       {list.map(zone => (
                         <div key={zone.id}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[12px] text-black dark:text-white">{zone.name}</span>
                             <div className="text-right">
-                              <span className="text-[12px] font-bold text-black dark:text-white">{zone.avgPct}%</span>
-                              <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400">{zone.segCount} segs</span>
+                              <span className="text-[12px] font-bold text-black dark:text-white">{zone.pct}%</span>
+                              <span className="ml-2 text-[10px] text-[#6B7280] dark:text-gray-400 tabular-nums">{formatLength(zone.totalLen)}</span>
                             </div>
                           </div>
-                          <Bar pct={zone.avgPct} color={zone.avgPct >= 80 ? '#22c55e' : zone.avgPct >= 40 ? '#f97316' : '#2563FF'} />
+                          <Bar pct={zone.pct} color={zone.pct >= 80 ? '#22c55e' : zone.pct >= 40 ? '#f97316' : '#2563FF'} />
                         </div>
                       ))}
                     </div>
