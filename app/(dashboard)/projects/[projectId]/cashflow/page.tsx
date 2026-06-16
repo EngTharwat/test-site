@@ -98,33 +98,28 @@ function xerToCashflow(tables: XerTables): XerResult {
   const tasks = tables.TASK ?? []
   const num = (v: string | undefined) => { const n = parseFloat(v ?? ''); return Number.isFinite(n) ? n : 0 }
 
-  // Cost per task: resource assignments + expenses
+  // Planned cost per task: resource assignments (target) + expenses (target).
+  // Actual cost is intentionally NOT taken from the XER.
   const plannedByTask = new Map<string, number>()
-  const actualByTask  = new Map<string, number>()
   for (const r of tables.TASKRSRC ?? []) {
     const id = r.task_id
     if (!id) continue
     plannedByTask.set(id, (plannedByTask.get(id) ?? 0) + num(r.target_cost))
-    actualByTask.set(id,  (actualByTask.get(id)  ?? 0) + num(r.act_reg_cost) + num(r.act_ot_cost))
   }
   for (const r of tables.PROJCOST ?? []) {
     const id = r.task_id
     if (!id) continue
     plannedByTask.set(id, (plannedByTask.get(id) ?? 0) + num(r.target_cost))
-    actualByTask.set(id,  (actualByTask.get(id)  ?? 0) + num(r.act_cost))
   }
 
   const buckets = new Map<string, { planned: number; actual: number }>()
   let costedTasks = 0
   for (const t of tasks) {
     const planned = plannedByTask.get(t.task_id) ?? 0
-    const actual  = actualByTask.get(t.task_id)  ?? 0
-    if (planned <= 0 && actual <= 0) continue
+    if (planned <= 0) continue
     costedTasks++
-    // Planned spend over the planned (target) dates
+    // Planned spend spread over the target dates
     spreadCost(buckets, 'planned', xerDate(t.target_start_date), xerDate(t.target_end_date), planned)
-    // Actual spend over actual dates (in-progress tasks: through act_start month)
-    spreadCost(buckets, 'actual', xerDate(t.act_start_date), xerDate(t.act_end_date), actual)
   }
 
   const months = [...buckets.entries()]
@@ -311,12 +306,13 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
       try {
         const existing = !replaceAll ? byMonth.get(m.monthKey) : undefined
         if (existing) {
+          // Only the planned distribution comes from the XER — keep manual actual.
           const updated = await api.patch(`/api/projects/${projectId}/cashflow/${existing.id}`,
-            { year: m.year, month: m.month, monthKey: m.monthKey, planned: m.planned, actual: m.actual })
+            { year: m.year, month: m.month, monthKey: m.monthKey, planned: m.planned, actual: existing.actual })
           fresh.push(updated)
         } else {
           const created = await api.post(`/api/projects/${projectId}/cashflow`,
-            { year: m.year, month: m.month, planned: m.planned, actual: m.actual })
+            { year: m.year, month: m.month, planned: m.planned, actual: 0 })
           fresh.push(created)
         }
         ok++
@@ -392,7 +388,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
           </button>
           <h1 className="text-2xl font-bold text-black dark:text-white tracking-[-0.5px]">Cash Flow</h1>
           <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-1">
-            Monthly planned vs actual expenditure — import from a Primavera P6 schedule (.xer)
+            Monthly planned vs actual expenditure — XER (Primavera P6) import provides the planned distribution; actual is entered manually
           </p>
         </div>
         {canEdit && (
@@ -562,11 +558,10 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
               <button onClick={() => setXer(null)} className="text-[#6B7280] hover:text-black dark:hover:text-white text-xl">×</button>
             </div>
 
-            <div className="px-6 py-4 grid grid-cols-3 gap-4 border-b border-gray-100 dark:border-gray-800">
+            <div className="px-6 py-4 grid grid-cols-2 gap-4 border-b border-gray-100 dark:border-gray-800">
               {[
                 { l: 'Months',        v: fmtN(xer.months.length) },
                 { l: 'Total planned', v: formatCurrency(xer.totalPlanned, currency) },
-                { l: 'Total actual',  v: xer.totalActual > 0 ? formatCurrency(xer.totalActual, currency) : '—' },
               ].map(s => (
                 <div key={s.l}>
                   <div className="text-[9.5px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{s.l}</div>
@@ -579,7 +574,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
               <table className="w-full text-[11px] text-center">
                 <thead className="sticky top-0 bg-[#F3F4F6] dark:bg-gray-800">
                   <tr>
-                    {['Month','Planned','Actual'].map(h => (
+                    {['Month','Planned'].map(h => (
                       <th key={h} className="px-4 py-2 text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -589,7 +584,6 @@ export default function CashFlowPage({ params }: { params: Promise<{ projectId: 
                     <tr key={m.monthKey}>
                       <td className="px-4 py-2 font-semibold text-black dark:text-white">{MONTH_NAMES[m.month - 1]} {m.year}</td>
                       <td className="px-4 py-2 tabular-nums">{formatCurrency(m.planned, currency)}</td>
-                      <td className="px-4 py-2 tabular-nums">{m.actual > 0 ? formatCurrency(m.actual, currency) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

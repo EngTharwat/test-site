@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback, use, Fragment } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
@@ -42,6 +42,7 @@ import {
   ACTIVITY_KEYS, formatCurrency, formatLength, daysRemaining, fmtN,
   CURRENCIES, PROJECT_TYPES, PROJECT_STATUSES,
   ZONE_TYPES_BY_PROJECT, permitExpiryState, isHandedOver,
+  CashFlowRecord, MONTH_NAMES,
 } from '@/lib/types'
 
 // ── Tiny shared components ────────────────────────────────────────────────────
@@ -345,6 +346,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const canSeeZones = isAdmin || (pagePerm && pagePerm.zones !== 'none')
   const canSeeBoq   = isAdmin || (pagePerm && (pagePerm.boq ?? 'none') !== 'none')
   const canSeeInv   = isAdmin || (pagePerm && (pagePerm.invoices ?? 'none') !== 'none')
+  const canSeeCf    = isAdmin || (pagePerm && pagePerm.cash_flow !== 'none')
 
   const [project,  setProject]  = useState<Project | null>(null)
   const [zones,    setZones]    = useState<Zone[]>([])
@@ -355,6 +357,7 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [boqLoaded, setBoqLoaded] = useState(false)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [invLoaded, setInvLoaded] = useState(false)
+  const [cashflow, setCashflow] = useState<CashFlowRecord[]>([])
   const [loading,  setLoading]  = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error,    setError]    = useState('')
@@ -392,6 +395,8 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
       if (cb !== undefined) { setBoq(cb as BoqItem[]); setBoqLoaded(true) }
       const ci = api.peekCache(`/api/projects/${projectId}/invoices`)
       if (ci !== undefined) { setInvoices(ci as Invoice[]); setInvLoaded(true) }
+      // Cash flow is small (one row per month) — fetch in the background.
+      api.get(`/api/projects/${projectId}/cashflow`).then(setCashflow).catch(() => setCashflow([]))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -663,6 +668,24 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const cell = (b: string, a: string) => cellMap.get(`${b}|||${a}`)
   const completionLoaded = boqLoaded && invLoaded
   const pColor = (p: number) => p >= 80 ? '#22c55e' : p >= 40 ? '#14b8a6' : '#0ea5a4'
+
+  // ── Cash flow ───────────────────────────────────────────────────────────────
+  const cfSorted = [...cashflow].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+  const cfRows = (() => {
+    let cumP = 0, cumA = 0
+    return cfSorted.map(r => { cumP += r.planned; cumA += r.actual; return { ...r, cumP, cumA } })
+  })()
+  const cfPlanned = cfSorted.reduce((s, r) => s + r.planned, 0)
+  const cfActual  = cfSorted.reduce((s, r) => s + r.actual, 0)
+  const cfMaxBar  = Math.max(1, ...cfSorted.map(r => Math.max(r.planned, r.actual)))
+  const cfMaxCum  = Math.max(1, cfPlanned, cfActual)
+  const cfSpend   = cfPlanned > 0 ? Math.round(cfActual / cfPlanned * 100) : null
+  // Compact S-curve geometry
+  const CF_SLOT = 30, CF_PAD = 8, CF_H = 110
+  const cfWidth = CF_PAD * 2 + cfRows.length * CF_SLOT
+  const cfX = (i: number) => CF_PAD + i * CF_SLOT + CF_SLOT / 2
+  const cfCumY = (v: number) => CF_H - (v / cfMaxCum) * (CF_H - 8)
+  const cfLineP = cfRows.map((r, i) => `${cfX(i)},${cfCumY(r.cumP)}`).join(' ')
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -939,6 +962,76 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
                 <span key={iv.id} className="flex-1 min-w-[3px] text-[8px] text-center text-[#9CA3AF] dark:text-gray-500 truncate">{iv.number}</span>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cash flow summary ──────────────────────────────────────────────── */}
+      {canSeeCf && cfRows.length > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">💵 Cash Flow</h2>
+            <button onClick={() => router.push(`/projects/${projectId}/cashflow`)}
+              className="text-[11px] text-[#2563FF] hover:underline">View cash flow →</button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Total Planned</div>
+              <div className="text-xl font-bold tracking-[-0.5px] text-black dark:text-white tabular-nums">{formatCurrency(cfPlanned, project.currency)}</div>
+              <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-0.5">{cfRows.length} months</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Total Actual</div>
+              <div className="text-xl font-bold tracking-[-0.5px] text-green-600 dark:text-green-400 tabular-nums">{formatCurrency(cfActual, project.currency)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Spend Ratio</div>
+              <div className="text-xl font-bold tracking-[-0.5px] text-black dark:text-white tabular-nums">{cfSpend !== null ? `${cfSpend}%` : '—'}</div>
+              <div className="text-[11px] text-[#6B7280] dark:text-gray-400 mt-0.5">actual vs planned</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-[#6B7280] dark:text-gray-400 uppercase tracking-wider mb-1">Peak Month</div>
+              {(() => {
+                const peak = cfSorted.reduce((m, r) => r.planned > m.planned ? r : m, cfSorted[0])
+                return <div className="text-[13px] font-bold text-black dark:text-white">{MONTH_NAMES[peak.month - 1].slice(0, 3)} {String(peak.year).slice(2)}<span className="block text-[11px] font-normal text-[#6B7280] dark:text-gray-400 tabular-nums">{formatCurrency(peak.planned, project.currency)}</span></div>
+              })()}
+            </div>
+          </div>
+
+          {/* Monthly planned bars + cumulative planned S-curve */}
+          <div className="overflow-x-auto">
+            <svg width="100%" viewBox={`0 0 ${cfWidth} ${CF_H + 20}`} style={{ minWidth: Math.min(cfWidth, 760) }}>
+              {[0.5, 1].map(f => (
+                <line key={f} x1={CF_PAD} x2={cfWidth - CF_PAD} y1={CF_H - f * (CF_H - 8)} y2={CF_H - f * (CF_H - 8)}
+                  className="stroke-gray-100 dark:stroke-white/5" strokeWidth="1" />
+              ))}
+              {cfRows.map((r, i) => {
+                const hP = (r.planned / cfMaxBar) * (CF_H - 8)
+                const hA = (r.actual  / cfMaxBar) * (CF_H - 8)
+                return (
+                  <Fragment key={r.id ?? r.monthKey}>
+                    <rect x={cfX(i) - 10} width="9" rx="2" y={CF_H - hP} height={hP} fill="#2563FF" fillOpacity="0.85">
+                      <title>{`${MONTH_NAMES[r.month - 1]} ${r.year} — planned ${formatCurrency(r.planned, project.currency)}`}</title>
+                    </rect>
+                    {r.actual > 0 && (
+                      <rect x={cfX(i) + 1} width="9" rx="2" y={CF_H - hA} height={hA} fill="#22c55e" fillOpacity="0.85">
+                        <title>{`${MONTH_NAMES[r.month - 1]} ${r.year} — actual ${formatCurrency(r.actual, project.currency)}`}</title>
+                      </rect>
+                    )}
+                    <text x={cfX(i)} y={CF_H + 13} textAnchor="middle" fontSize="8" className="fill-gray-400 dark:fill-gray-500">
+                      {MONTH_NAMES[r.month - 1].slice(0, 1)}{String(r.year).slice(2)}
+                    </text>
+                  </Fragment>
+                )
+              })}
+              <polyline points={cfLineP} fill="none" stroke="#2563FF" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div className="flex items-center gap-4 mt-2 text-[10px] text-[#6B7280] dark:text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm bg-[#2563FF]/85" />Planned / month</span>
+            {cfActual > 0 && <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm bg-[#22c55e]/85" />Actual / month</span>}
+            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-[#2563FF]" />Cumulative planned</span>
           </div>
         </div>
       )}
