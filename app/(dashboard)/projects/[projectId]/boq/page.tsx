@@ -143,6 +143,7 @@ export default function BoqPage({ params }: { params: Promise<{ projectId: strin
   const scopeOptions = [...new Set([
     ...(ZONE_TYPES_BY_PROJECT[projectType] ?? ZONE_TYPES_BY_PROJECT.other ?? []),
     ...zones.map(z => z.type).filter(Boolean),
+    'Other',
   ])]
   const areaOptions = [...new Set(zones.map(z => z.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
   const currency = project?.currency ?? 'SAR'

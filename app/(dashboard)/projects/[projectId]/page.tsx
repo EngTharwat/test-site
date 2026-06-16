@@ -630,11 +630,12 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const boqVal = (it: BoqItem) => it.totalPrice || 0
   const invVal = (id: string) => invoicedByBoq.get(id) || 0
 
-  // Table 1 — completion % by Area (fallback Scope when an item has no area)
+  // Table 1 — completion % by "Scope - Area" (Scope only when an item has no area)
   const areaCompletion = (() => {
     const m = new Map<string, { contract: number; invoiced: number }>()
     boq.forEach(it => {
-      const key = it.area || it.scope || '—'
+      const scope = it.scope || '—'
+      const key = it.area ? `${scope} - ${it.area}` : scope
       const g = m.get(key) ?? m.set(key, { contract: 0, invoiced: 0 }).get(key)!
       g.contract += boqVal(it); g.invoiced += invVal(it.id)
     })
@@ -961,13 +962,13 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             {/* Table 1 — completion % by Area */}
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800">
-                <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Completion % × Area</h2>
+                <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Completion % × Scope</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[12px]">
                   <thead>
                     <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                      <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Area</th>
+                      <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Scope</th>
                       <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Total Contract</th>
                       <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider w-[140px]">Completion</th>
                     </tr>
