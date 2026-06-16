@@ -85,6 +85,9 @@ export const api = {
     clearCache()
     return r
   },
+  /** Return cached data for a path without making a network call (undefined if
+   *  not cached or expired). Lets a page reuse data another page already read. */
+  peekCache: (path: string) => readCache(path),
   /** Manually flush the cache (e.g. a pull-to-refresh). */
   clearCache,
 }

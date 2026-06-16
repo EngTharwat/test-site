@@ -350,9 +350,13 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   const [zones,    setZones]    = useState<Zone[]>([])
   const [segments, setSegments] = useState<Segment[]>([])
   const [permits,  setPermits]  = useState<Permit[]>([])
+  const [permitsLoaded, setPermitsLoaded] = useState(false)
   const [boq,      setBoq]      = useState<BoqItem[]>([])
+  const [boqLoaded, setBoqLoaded] = useState(false)
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invLoaded, setInvLoaded] = useState(false)
   const [loading,  setLoading]  = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error,    setError]    = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -379,10 +383,15 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         api.get(`/api/projects/${projectId}/segments`),
       ])
       setProject(proj); setZones(zoneData); setSegments(segData)
-      // Permits + BOQ are optional (member may lack access) — never block the page.
-      api.get(`/api/projects/${projectId}/permits`).then(setPermits).catch(() => setPermits([]))
-      api.get(`/api/projects/${projectId}/boq`).then(setBoq).catch(() => setBoq([]))
-      api.get(`/api/projects/${projectId}/invoices`).then(setInvoices).catch(() => setInvoices([]))
+      // Permits are optional (member may lack access) — never block the page.
+      api.get(`/api/projects/${projectId}/permits`).then(d => { setPermits(d); setPermitsLoaded(true) }).catch(() => { setPermits([]); setPermitsLoaded(true) })
+      // BOQ + Invoices can be large — don't read them on every Overview load.
+      // Reuse them only if another page already cached them; otherwise they
+      // load on demand (button) to keep Firestore reads low.
+      const cb = api.peekCache(`/api/projects/${projectId}/boq`)
+      if (cb !== undefined) { setBoq(cb as BoqItem[]); setBoqLoaded(true) }
+      const ci = api.peekCache(`/api/projects/${projectId}/invoices`)
+      if (ci !== undefined) { setInvoices(ci as Invoice[]); setInvLoaded(true) }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
@@ -391,6 +400,26 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
   }, [projectId])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  // On-demand loaders for the heavy panels
+  const loadBoq = useCallback(async () => {
+    try { setBoq(await api.get(`/api/projects/${projectId}/boq`)); setBoqLoaded(true) } catch { /* ignore */ }
+  }, [projectId])
+  const loadInvoices = useCallback(async () => {
+    try { setInvoices(await api.get(`/api/projects/${projectId}/invoices`)); setInvLoaded(true) } catch { /* ignore */ }
+  }, [projectId])
+
+  // Refresh — bypass the cache and re-read everything currently shown.
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    const reBoq = boqLoaded, reInv = invLoaded
+    api.clearCache()
+    try {
+      await fetchAll()
+      if (reBoq) await loadBoq()
+      if (reInv) await loadInvoices()
+    } finally { setRefreshing(false) }
+  }, [fetchAll, loadBoq, loadInvoices, boqLoaded, invLoaded])
 
   // Default the map slicer to the Area with the most mapped segments (so the
   // map opens on something), else the first area that has a point facility.
@@ -604,6 +633,10 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
 
           {/* Actions — own row on mobile, equal-width tap targets; inline on desktop */}
           <div className="flex items-center gap-2 flex-shrink-0 border-t md:border-t-0 border-gray-100 dark:border-gray-800 pt-3 md:pt-0">
+            <button onClick={refresh} disabled={refreshing} title="Reload latest data (bypasses cache)"
+              className="flex-1 md:flex-none text-sm font-semibold text-[#374151] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors">
+              {refreshing ? '↻ Refreshing…' : '↻ Refresh'}
+            </button>
             {canEdit && (
               <>
                 <button onClick={() => setEditOpen(true)}
@@ -686,8 +719,20 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         </div>
       )}
 
-      {/* ── BOQ summary ──────────────────────────────────────────────────── */}
-      {canSeeBoq && boqCount > 0 && (
+      {/* ── BOQ summary (loaded on demand to save reads) ───────────────────── */}
+      {canSeeBoq && !boqLoaded && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">🧾 Bill of Quantities</span>
+            <span className="text-[11px] text-[#6B7280] dark:text-gray-400">summary not loaded</span>
+          </div>
+          <button onClick={loadBoq}
+            className="text-[12px] font-semibold text-[#2563FF] border border-[#2563FF]/40 hover:bg-blue-50 dark:hover:bg-blue-950/30 px-3 py-1.5 rounded-lg transition-colors">
+            Load summary
+          </button>
+        </div>
+      )}
+      {canSeeBoq && boqLoaded && boqCount > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">🧾 Bill of Quantities</h2>
@@ -746,8 +791,20 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
         </div>
       )}
 
-      {/* ── Invoices summary ─────────────────────────────────────────────── */}
-      {canSeeInv && invCount > 0 && (
+      {/* ── Invoices summary (loaded on demand to save reads) ──────────────── */}
+      {canSeeInv && !invLoaded && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">🧾 Invoices</span>
+            <span className="text-[11px] text-[#6B7280] dark:text-gray-400">summary not loaded</span>
+          </div>
+          <button onClick={loadInvoices}
+            className="text-[12px] font-semibold text-[#2563FF] border border-[#2563FF]/40 hover:bg-blue-50 dark:hover:bg-blue-950/30 px-3 py-1.5 rounded-lg transition-colors">
+            Load summary
+          </button>
+        </div>
+      )}
+      {canSeeInv && invLoaded && invCount > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">🧾 Invoices</h2>
