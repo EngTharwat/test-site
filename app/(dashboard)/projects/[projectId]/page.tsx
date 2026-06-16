@@ -599,6 +599,52 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
     (a.number || '').localeCompare(b.number || '', undefined, { numeric: true, sensitivity: 'base' }))
   const invMax = Math.max(1, ...invSorted.map(iv => iv.total || 0))
 
+  // ── Completion vs BOQ (from invoices) ───────────────────────────────────────
+  // Invoiced value per BOQ item = Σ of its line amounts across every invoice.
+  const invoicedByBoq = (() => {
+    const m = new Map<string, number>()
+    invoices.forEach(iv => (iv.lines || []).forEach(l => {
+      if (!l.boqId) return
+      m.set(l.boqId, (m.get(l.boqId) || 0) + (l.amount || 0))
+    }))
+    return m
+  })()
+  const boqVal = (it: BoqItem) => it.totalPrice || 0
+  const invVal = (id: string) => invoicedByBoq.get(id) || 0
+
+  // Table 1 — completion % by Area (fallback Scope when an item has no area)
+  const areaCompletion = (() => {
+    const m = new Map<string, { contract: number; invoiced: number }>()
+    boq.forEach(it => {
+      const key = it.area || it.scope || '—'
+      const g = m.get(key) ?? m.set(key, { contract: 0, invoiced: 0 }).get(key)!
+      g.contract += boqVal(it); g.invoiced += invVal(it.id)
+    })
+    return [...m.entries()]
+      .map(([label, g]) => ({ label, contract: g.contract, invoiced: g.invoiced, pct: g.contract ? Math.round(g.invoiced / g.contract * 100) : 0 }))
+      .sort((a, b) => b.contract - a.contract)
+  })()
+  const acContract = areaCompletion.reduce((s, r) => s + r.contract, 0)
+  const acInvoiced = areaCompletion.reduce((s, r) => s + r.invoiced, 0)
+  const acPct = acContract ? Math.round(acInvoiced / acContract * 100) : 0
+
+  // Table 2 — building × area matrix (items that carry a building, e.g. stations)
+  const buildingItems  = boq.filter(it => it.building)
+  const matrixBuildings = [...new Set(buildingItems.map(it => it.building as string))]
+  const matrixAreas     = [...new Set(buildingItems.map(it => it.area || '—'))]
+  const cellMap = (() => {
+    const m = new Map<string, { contract: number; invoiced: number }>()
+    buildingItems.forEach(it => {
+      const k = `${it.building}|||${it.area || '—'}`
+      const g = m.get(k) ?? m.set(k, { contract: 0, invoiced: 0 }).get(k)!
+      g.contract += boqVal(it); g.invoiced += invVal(it.id)
+    })
+    return m
+  })()
+  const cell = (b: string, a: string) => cellMap.get(`${b}|||${a}`)
+  const completionLoaded = boqLoaded && invLoaded
+  const pColor = (p: number) => p >= 80 ? '#22c55e' : p >= 40 ? '#14b8a6' : '#0ea5a4'
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
 
@@ -876,6 +922,110 @@ export default function ProjectOverviewPage({ params }: { params: Promise<{ proj
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Completion matrices (invoiced ÷ BOQ) ───────────────────────────── */}
+      {canSeeBoq && canSeeInv && (
+        !completionLoaded ? (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">📊 Completion vs BOQ</span>
+              <span className="text-[11px] text-[#6B7280] dark:text-gray-400">from invoices — not loaded</span>
+            </div>
+            <button onClick={() => { loadBoq(); loadInvoices() }}
+              className="text-[12px] font-semibold text-[#2563FF] border border-[#2563FF]/40 hover:bg-blue-50 dark:hover:bg-blue-950/30 px-3 py-1.5 rounded-lg transition-colors">
+              Load matrices
+            </button>
+          </div>
+        ) : boq.length > 0 ? (
+          <div className={`grid grid-cols-1 gap-6 ${matrixBuildings.length > 0 ? 'xl:grid-cols-2' : ''}`}>
+
+            {/* Table 1 — completion % by Area */}
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800">
+                <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Completion % × Area</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Area</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Total Contract</th>
+                      <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider w-[140px]">Completion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                    {areaCompletion.map(r => (
+                      <tr key={r.label} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50">
+                        <td className="px-4 py-2.5 font-medium text-black dark:text-white">{r.label}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-[#374151] dark:text-gray-300 whitespace-nowrap">{formatCurrency(r.contract, project.currency)}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1"><Bar pct={r.pct} color={pColor(r.pct)} height={7} /></div>
+                            <span className="text-[11px] font-semibold tabular-nums w-10 text-right" style={{ color: pColor(r.pct) }}>{r.pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700">
+                      <td className="px-4 py-2.5 font-bold text-black dark:text-white">Project Total</td>
+                      <td className="px-4 py-2.5 text-right font-bold tabular-nums text-black dark:text-white whitespace-nowrap">{formatCurrency(acContract, project.currency)}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1"><Bar pct={acPct} color={pColor(acPct)} height={7} /></div>
+                          <span className="text-[11px] font-bold tabular-nums w-10 text-right" style={{ color: pColor(acPct) }}>{acPct}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            {/* Table 2 — building × area matrix */}
+            {matrixBuildings.length > 0 && (
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800">
+                  <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Stations Completion · Building × Area</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Building</th>
+                        {matrixAreas.map(a => (
+                          <th key={a} className="px-4 py-2.5 text-center text-[10px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{a}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                      {matrixBuildings.map(b => (
+                        <tr key={b} className="hover:bg-[#F9FAFB] dark:hover:bg-gray-800/50">
+                          <td className="px-4 py-2.5 font-medium text-black dark:text-white whitespace-nowrap">{b}</td>
+                          {matrixAreas.map(a => {
+                            const c = cell(b, a)
+                            if (!c || c.contract === 0) return <td key={a} className="px-4 py-2.5 text-center text-[#D1D5DB] dark:text-gray-600">—</td>
+                            const pct = Math.round(c.invoiced / c.contract * 100)
+                            return (
+                              <td key={a} className="px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 min-w-[40px]"><Bar pct={pct} color={pColor(pct)} height={7} /></div>
+                                  <span className="text-[11px] font-semibold tabular-nums w-10 text-right" style={{ color: pColor(pct) }}>{pct}%</span>
+                                </div>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null
       )}
 
       {/* ── Project Map — filtered to one Area, with slicer + area stats ──── */}
