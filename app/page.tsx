@@ -617,7 +617,7 @@ export default function LandingPage() {
         <div className="flex items-center gap-2 text-black dark:text-white">
           <LogoIcon size={18} variant="outline" />
           <span className="text-[12px] text-[#6B7280] dark:text-gray-400">
-            © {new Date().getFullYear()} Mohamed Tharwat
+            © {new Date().getFullYear()} PMBoards
           </span>
         </div>
         <div className="flex items-center gap-4">
