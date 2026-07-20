@@ -46,7 +46,9 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(''); setBusy(true)
     try {
-      await signUp(email, password)
+      // If the account was already created (e.g. the user stepped back to
+      // review this step), just advance instead of signing up again.
+      if (!user) await signUp(email, password)
       setStep(2)
     } catch (err: unknown) {
       const raw  = err instanceof Error ? err.message : String(err)
@@ -195,6 +197,12 @@ export default function RegisterPage() {
                 className="w-full bg-[#2563FF] hover:bg-[#1d4fd8] text-white text-[13px] font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-colors"
               >
                 {busy ? 'Creating portfolio…' : 'Create Portfolio →'}
+              </button>
+              <button
+                type="button" onClick={() => { setError(''); setStep(1) }}
+                className="w-full text-[12px] font-semibold text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+              >
+                ← Back
               </button>
             </form>
           )}

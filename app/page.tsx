@@ -549,11 +549,9 @@ export default function LandingPage() {
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          {/* Sign-in hidden during demo */}
           <button
             onClick={() => router.push('/login')}
-            className="text-[13px] font-semibold text-[#374151] hover:text-black transition-colors opacity-0 pointer-events-none select-none"
-            aria-hidden="true"
+            className="text-[13px] font-semibold text-[#374151] dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors"
           >
             Sign in →
           </button>
