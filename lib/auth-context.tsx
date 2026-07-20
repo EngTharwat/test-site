@@ -10,6 +10,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth } from './firebase'
+import { api } from './api'
 import type { MemberPermissions } from './permissions'
 
 // ── Profile ───────────────────────────────────────────────────────────────────
@@ -91,6 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Start every app load with a clean data cache so users never see stale
+  // data after a refresh (and one account's cache can't outlive it).
+  useEffect(() => { api.clearCache() }, [])
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u)
@@ -107,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    api.clearCache()
     const cred = await signInWithEmailAndPassword(auth, email, password)
     await fetchProfile(cred.user)
   }
@@ -126,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(err.error || 'Login failed')
     }
     const { token } = await res.json()
+    api.clearCache()
     const cred = await signInWithCustomToken(auth, token)
     await fetchProfile(cred.user)
   }
@@ -137,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    api.clearCache()
     await firebaseSignOut(auth)
     setProfile(null)
     setProfileError(false)
