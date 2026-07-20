@@ -609,8 +609,8 @@ export default function LandingPage() {
 
       </main>
 
-      {/* ── FOUNDER SECTION ─────────────────────────────────────── */}
-      <FounderSection />
+      {/* ── FOUNDER SECTION — hidden for now; re-enable by rendering <FounderSection /> ─── */}
+      {false && <FounderSection />}
 
       {/* ── FOOTER ──────────────────────────────────────────────── */}
       <footer className="flex items-center justify-between px-8 md:px-12 py-4 border-t border-[#F3F4F6] dark:border-gray-800 flex-shrink-0">
