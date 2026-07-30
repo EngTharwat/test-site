@@ -15,8 +15,17 @@ function toSlug(text: string): string {
 }
 
 export default function RegisterPage() {
-  const { user, loading, profile, profileLoading, signUp, refreshProfile } = useAuth()
+  const { user, loading, profile, profileLoading, signUp, refreshProfile, signOut } = useAuth()
   const router = useRouter()
+
+  // Going to the login page from here means "I want a different/existing
+  // account". If a half-finished session is still signed in (account created
+  // but no portfolio yet), it would bounce us to /dashboard → back to the
+  // portfolio step. Sign that session out first so /login actually opens.
+  async function goToLogin() {
+    try { await signOut() } catch {}
+    router.push('/login')
+  }
 
   const [step,         setStep]         = useState<1 | 2>(1)
   const [email,        setEmail]        = useState('')
@@ -154,7 +163,7 @@ export default function RegisterPage() {
               </button>
               <p className="text-center text-[12px] text-[#6B7280] dark:text-gray-400">
                 Already have an account?{' '}
-                <button type="button" onClick={() => router.push('/login')}
+                <button type="button" onClick={goToLogin}
                   className="text-black dark:text-white font-semibold hover:underline">
                   Sign in
                 </button>
@@ -198,12 +207,20 @@ export default function RegisterPage() {
               >
                 {busy ? 'Creating portfolio…' : 'Create Portfolio →'}
               </button>
-              <button
-                type="button" onClick={() => { setError(''); setStep(1) }}
-                className="w-full text-[12px] font-semibold text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-              >
-                ← Back
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button" onClick={() => { setError(''); setStep(1) }}
+                  className="text-[12px] font-semibold text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                >
+                  ← Back
+                </button>
+                <button
+                  type="button" onClick={goToLogin}
+                  className="text-[12px] font-semibold text-[#6B7280] dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                >
+                  Log in with a different account
+                </button>
+              </div>
             </form>
           )}
         </div>
